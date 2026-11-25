@@ -3,6 +3,7 @@ import { ZoomIn, ZoomOut, Sparkles, Maximize2, ScanEye } from 'lucide-react';
 import type { CutMode, CutRange, ExportSegment } from '../types/media';
 import { formatTimecode } from '../utils/timecode';
 import { snapToNearestKeyframe } from '../utils/segments';
+import { useI18n } from '../i18n';
 
 interface TimelineProps {
   duration: number;
@@ -53,6 +54,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   onSeek,
   onUpdateRange,
 }) => {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1); // 1x = full video visible
@@ -152,7 +154,7 @@ export const Timeline: React.FC<TimelineProps> = ({
     if (duration <= 0) {
       ctx.fillStyle = 'rgba(255,255,255,0.22)';
       ctx.font = '11px -apple-system, sans-serif';
-      ctx.fillText('导入视频后可在此处拖动时间轴、查看关键帧 (I-frame) 与可视化剪辑区间', 14, 52);
+      ctx.fillText(t('tl.emptyHint'), 14, 52);
       return;
     }
 
@@ -358,6 +360,7 @@ export const Timeline: React.FC<TimelineProps> = ({
     hoverTime,
     skimmingEnabled,
     timeToX,
+    t,
   ]);
 
   const throttledSeek = useCallback(
@@ -476,15 +479,15 @@ export const Timeline: React.FC<TimelineProps> = ({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400/70 inline-block" />
-            <span className="text-zinc-400">保留片段 ({keptSegments.length})</span>
+            <span className="text-zinc-400">{t('tl.keptSegments', { n: keptSegments.length })}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-sm bg-rose-500/70 inline-block" />
-            <span className="text-zinc-400">剪掉区间</span>
+            <span className="text-zinc-400">{t('tl.removedRanges')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-2.5 bg-amber-400 inline-block" />
-            <span className="text-zinc-400">关键帧</span>
+            <span className="text-zinc-400">{t('tl.keyframes')}</span>
           </div>
           {hoverTime !== null && duration > 0 && (
             <span
@@ -494,7 +497,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                   : 'text-cyan-300 bg-cyan-500/10'
               }`}
             >
-              {skimmingEnabled ? '浏览' : '指针'} {formatTimecode(hoverTime, true)}
+              {skimmingEnabled ? t('tl.skim') : t('tl.cursor')} {formatTimecode(hoverTime, true)}
             </span>
           )}
         </div>
@@ -507,10 +510,10 @@ export const Timeline: React.FC<TimelineProps> = ({
                 ? 'bg-orange-500/15 border-orange-400/50 text-orange-200'
                 : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.09] text-zinc-400 hover:text-zinc-200'
             }`}
-            title="Final Cut Pro 风格时间轴悬停实时预览 (快捷键 S)：鼠标划过时间轴实时预览对应画面，移开后自动恢复播放头画面"
+            title={t('tl.skimmingTitle')}
           >
             <ScanEye className="w-3 h-3" />
-            <span>{skimmingEnabled ? '浏览预览 · 开' : '浏览预览'}</span>
+            <span>{skimmingEnabled ? t('tl.skimmingOn') : t('tl.skimmingOff')}</span>
           </button>
 
           <button
@@ -520,21 +523,17 @@ export const Timeline: React.FC<TimelineProps> = ({
                 ? 'bg-cyan-500/15 border-cyan-400/45 text-cyan-200'
                 : 'bg-amber-500/15 border-amber-400/40 text-amber-300'
             }`}
-            title={
-              smartCut
-                ? '智能剪辑已开启：支持任意帧精确切点，仅对切点处 1 个 GOP 局部匹配编码，其余 99% 画面保持 -c:v copy'
-                : '纯关键帧模式：自动吸附最近关键帧，全程 100% 零重编码'
-            }
+            title={smartCut ? t('tl.smartCutOnTitle') : t('tl.smartCutOffTitle')}
           >
             <Sparkles className="w-3 h-3" />
-            <span>{smartCut ? '智能剪辑 · 帧精确' : '仅关键帧 · 0重编码'}</span>
+            <span>{smartCut ? t('tl.smartCutOn') : t('tl.smartCutOff')}</span>
           </button>
 
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setZoom((z) => Math.max(1, z / 1.5))}
               className="text-zinc-400 hover:text-white cursor-pointer"
-              title="缩小时间轴"
+              title={t('tl.zoomOut')}
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
@@ -550,7 +549,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             <button
               onClick={() => setZoom((z) => Math.min(60, z * 1.5))}
               className="text-zinc-400 hover:text-white cursor-pointer"
-              title="放大时间轴"
+              title={t('tl.zoomIn')}
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
@@ -564,7 +563,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                   setViewStart(0);
                 }}
                 className="text-zinc-400 hover:text-cyan-300 cursor-pointer"
-                title="重置缩放"
+                title={t('tl.resetZoom')}
               >
                 <Maximize2 className="w-3 h-3" />
               </button>

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Film, FolderOpen, Sparkles, ShieldCheck, Layers } from 'lucide-react';
 import type { MediaInfo } from '../types/media';
+import { useI18n } from '../i18n';
 
 interface VideoViewportProps {
   media: MediaInfo | null;
@@ -26,6 +27,7 @@ export const VideoViewport: React.FC<VideoViewportProps> = ({
   onImportVideo,
   onTogglePause,
 }) => {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,7 +82,7 @@ export const VideoViewport: React.FC<VideoViewportProps> = ({
             <Film className="w-8 h-8 text-cyan-400" />
           </div>
           <h2 className="text-lg font-semibold text-white tracking-tight mb-5">
-            拖入或导入视频文件
+            {t('viewport.dropTitle')}
           </h2>
           <button
             onClick={(e) => {
@@ -90,32 +92,32 @@ export const VideoViewport: React.FC<VideoViewportProps> = ({
             className="h-10 px-5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-semibold flex items-center gap-2 cursor-pointer"
           >
             <FolderOpen className="w-4 h-4 stroke-[2.3]" />
-            <span>选择视频文件</span>
+            <span>{t('viewport.selectFile')}</span>
           </button>
 
           <div className="grid grid-cols-3 gap-3 mt-8 w-full text-center">
             <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center">
               <Sparkles className="w-4 h-4 text-amber-400 mb-1.5" />
-              <div className="text-[11px] font-medium text-zinc-200">真 HDR 硬解引擎</div>
+              <div className="text-[11px] font-medium text-zinc-200">{t('viewport.cardHdr')}</div>
             </div>
             <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center">
               <ShieldCheck className="w-4 h-4 text-emerald-400 mb-1.5" />
-              <div className="text-[11px] font-medium text-zinc-200">绝对零重编码</div>
+              <div className="text-[11px] font-medium text-zinc-200">{t('viewport.cardLossless')}</div>
             </div>
             <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] flex flex-col items-center">
               <Layers className="w-4 h-4 text-cyan-400 mb-1.5" />
-              <div className="text-[11px] font-medium text-zinc-200">多音轨混音命名</div>
+              <div className="text-[11px] font-medium text-zinc-200">{t('viewport.cardAudio')}</div>
             </div>
           </div>
         </div>
       ) : errorMsg ? (
         <div className="text-center px-6 max-w-md">
-          <div className="text-sm font-medium text-amber-400 mb-1">视频播放器提示</div>
+          <div className="text-sm font-medium text-amber-400 mb-1">{t('viewport.playerNotice')}</div>
           <div className="text-xs text-zinc-400 leading-relaxed">{errorMsg}</div>
         </div>
       ) : (
         <div className="text-[11px] text-zinc-600 pointer-events-none">
-          正在由原生 libmpv HDR 引擎渲染画面...
+          {t('viewport.rendering')}
         </div>
       )}
     </div>

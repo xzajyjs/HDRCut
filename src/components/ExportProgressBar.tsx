@@ -2,6 +2,7 @@ import React from 'react';
 import { CheckCircle2, FolderOpen, XCircle, Loader2, AlertTriangle } from 'lucide-react';
 import type { ExportProgressEvent } from '../types/media';
 import { formatBytes, formatTimecode } from '../utils/timecode';
+import { useI18n } from '../i18n';
 
 interface ExportProgressBarProps {
   progress: ExportProgressEvent | null;
@@ -16,6 +17,7 @@ export const ExportProgressBar: React.FC<ExportProgressBarProps> = ({
   onRevealOutput,
   onDismiss,
 }) => {
+  const { t } = useI18n();
   if (!progress) return null;
 
   const isRunning = progress.status === 'running';
@@ -70,7 +72,7 @@ export const ExportProgressBar: React.FC<ExportProgressBarProps> = ({
             onClick={onCancel}
             className="h-7 px-3 rounded-md bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 font-medium cursor-pointer"
           >
-            取消导出
+            {t('export.cancel')}
           </button>
         )}
         {isDone && (
@@ -79,7 +81,7 @@ export const ExportProgressBar: React.FC<ExportProgressBarProps> = ({
             className="h-7 px-3 rounded-md bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer"
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            <span>打开所在文件夹</span>
+            <span>{t('export.reveal')}</span>
           </button>
         )}
         {!isRunning && (
@@ -87,7 +89,7 @@ export const ExportProgressBar: React.FC<ExportProgressBarProps> = ({
             onClick={onDismiss}
             className="h-7 px-2.5 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-[11px] text-zinc-300 cursor-pointer"
           >
-            关闭
+            {t('export.close')}
           </button>
         )}
       </div>

@@ -8,9 +8,11 @@ import {
   Loader2,
   X,
   Info,
+  Globe,
 } from 'lucide-react';
 import type { MediaInfo, ToolStatus } from '../types/media';
 import { formatBitrate, formatBytes } from '../utils/timecode';
+import { useI18n } from '../i18n';
 
 interface TopBarProps {
   media: MediaInfo | null;
@@ -43,12 +45,13 @@ export const TopBar: React.FC<TopBarProps> = ({
   onExportFormatChange,
   onStartExport,
 }) => {
+  const { locale, toggleLocale, t } = useI18n();
   const video = media?.video;
   const displayBitrate = formatBitrate(video?.bit_rate || media?.bit_rate || null);
 
   return (
     <header className="h-[54px] shrink-0 bg-[#0d1017] border-b border-white/[0.07] px-3.5 flex items-center justify-between gap-3">
-      {/* Left: Brand + Import + Media Info Strip (Size, Resolution, Codec/FPS, Bitrate, HDR/SDR, Details) */}
+      {/* Left: Brand + Import + Media Info Strip */}
       <div className="flex items-center gap-2 min-w-0">
         <div className="flex items-center gap-2 pr-2 border-r border-white/[0.08] shrink-0">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-400 via-sky-500 to-amber-400 flex items-center justify-center shadow-lg shadow-cyan-500/20">
@@ -56,7 +59,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight text-white">HDRCut</div>
-            <div className="text-[10px] text-zinc-500 font-medium">v1.3.1</div>
+            <div className="text-[10px] text-zinc-500 font-medium">v1.4.0</div>
           </div>
         </div>
 
@@ -64,14 +67,14 @@ export const TopBar: React.FC<TopBarProps> = ({
           onClick={onImportVideo}
           disabled={isAnalyzing}
           className="h-8 px-3 rounded-lg bg-white/[0.07] hover:bg-white/[0.12] active:bg-white/[0.15] border border-white/[0.09] text-xs font-medium text-zinc-100 flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer disabled:opacity-50"
-          title="导入视频文件 (⌘O / Ctrl+O)"
+          title={t('top.importTooltip')}
         >
           {isAnalyzing ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
           ) : (
             <FolderOpen className="w-3.5 h-3.5 text-cyan-400" />
           )}
-          <span>{media ? '更换视频' : '导入视频'}</span>
+          <span>{media ? t('top.replaceVideo') : t('top.importVideo')}</span>
         </button>
 
         {media ? (
@@ -80,10 +83,10 @@ export const TopBar: React.FC<TopBarProps> = ({
               onClick={onCloseVideo}
               disabled={isExporting}
               className="h-7 px-2 rounded-lg bg-white/[0.05] hover:bg-rose-500/20 border border-white/[0.08] hover:border-rose-500/40 text-[11px] text-zinc-300 hover:text-rose-200 flex items-center gap-1 shrink-0 transition-colors cursor-pointer disabled:opacity-40"
-              title="关闭当前视频预览"
+              title={t('top.closeTooltip')}
             >
               <X className="w-3.5 h-3.5" />
-              <span>关闭</span>
+              <span>{t('top.close')}</span>
             </button>
 
             <span className="px-1.5 py-0.5 rounded bg-white/[0.06] text-[10px] font-mono-num text-zinc-300 shrink-0">
@@ -119,40 +122,50 @@ export const TopBar: React.FC<TopBarProps> = ({
             <button
               onClick={onOpenDetails}
               className="h-7 px-2 rounded-lg bg-white/[0.06] hover:bg-cyan-500/20 border border-white/[0.08] hover:border-cyan-400/40 text-[11px] text-zinc-200 hover:text-cyan-200 flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-              title="查看完整视频/音频/字幕详细属性 (MediaInfo)"
+              title={t('top.detailsTooltip')}
             >
               <Info className="w-3.5 h-3.5 text-cyan-400" />
-              <span>详情</span>
+              <span>{t('top.details')}</span>
             </button>
           </div>
         ) : (
           <div className="hidden lg:flex items-center gap-2 text-[11px] text-zinc-500">
-            <span>支持 MKV / MP4 / MOV</span>
+            <span>{t('top.supportedFormats')}</span>
             {toolStatus && !toolStatus.libmpv_available && (
-              <span className="text-amber-400">· 未检测到 libmpv</span>
+              <span className="text-amber-400">{t('top.noLibmpv')}</span>
             )}
           </div>
         )}
       </div>
 
-      {/* Right: Visual Output Directory + Format Toggle (MKV/MP4) + Lossless Export CTA */}
+      {/* Right: Language Switcher + Output Directory + Format Toggle + Export CTA */}
       <div className="flex items-center gap-2 shrink-0">
         <button
+          type="button"
+          onClick={toggleLocale}
+          className="h-8 px-2 rounded-lg bg-[#141824] hover:bg-[#1a2030] border border-white/[0.08] text-[11px] font-medium text-zinc-300 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
+          title={t('app.langToggleTitle')}
+        >
+          <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+          <span className="font-mono-num">{locale === 'zh' ? '中文' : 'EN'}</span>
+        </button>
+
+        <button
           onClick={onPickOutputDir}
-          className="h-8 px-2.5 rounded-lg bg-[#141824] hover:bg-[#1a2030] border border-white/[0.08] text-[11px] text-zinc-300 flex items-center gap-1.5 max-w-[190px] transition-colors cursor-pointer"
-          title={outputDir || '点击选择导出目录'}
+          className="h-8 px-2.5 rounded-lg bg-[#141824] hover:bg-[#1a2030] border border-white/[0.08] text-[11px] text-zinc-300 flex items-center gap-1.5 max-w-[180px] transition-colors cursor-pointer"
+          title={outputDir || t('top.selectOutputDirTooltip')}
         >
           <FolderOutput className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
           <span className="truncate">
             {outputDir
               ? outputDir.split(/[\\/]/).filter(Boolean).slice(-2).join('/')
-              : '选择导出目录'}
+              : t('top.selectOutputDir')}
           </span>
         </button>
 
         <div
           className="h-8 p-0.5 rounded-lg bg-[#141824] border border-white/[0.08] flex items-center"
-          title="选择导出封装格式"
+          title={t('top.exportFormatTooltip')}
         >
           <button
             type="button"
@@ -190,7 +203,11 @@ export const TopBar: React.FC<TopBarProps> = ({
           ) : (
             <Download className="w-3.5 h-3.5 stroke-[2.3]" />
           )}
-          <span>{isExporting ? '导出中...' : `无损导出 ${exportFormat.toUpperCase()}`}</span>
+          <span>
+            {isExporting
+              ? t('top.exporting')
+              : t('top.losslessExport', { fmt: exportFormat.toUpperCase() })}
+          </span>
         </button>
       </div>
     </header>

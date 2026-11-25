@@ -12,6 +12,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import type { EditableSubtitleTrack } from '../types/media';
+import { useI18n } from '../i18n';
 
 interface SubtitlePanelProps {
   hasMedia: boolean;
@@ -42,6 +43,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   onExportSingleSubtitle,
   onExportBatchSubtitles,
 }) => {
+  const { t } = useI18n();
   const internalEnabledCount = subtitles.filter(
     (s) => s.enabled && s.source_kind === 'internal'
   ).length;
@@ -53,16 +55,16 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
       <div className="p-3 border-b border-white/[0.06] space-y-2 shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="text-xs font-semibold text-zinc-100">
-            字幕管理 ({totalEnabled}/{subtitles.length})
+            {t('sub.header', { enabled: totalEnabled, total: subtitles.length })}
           </div>
           {activePreviewSid > 0 && hasMedia && (
             <button
               onClick={() => onPreviewSubtitle(0)}
               className="h-6 px-2 rounded-md bg-white/[0.06] hover:bg-white/[0.12] text-[10px] text-zinc-300 flex items-center gap-1 cursor-pointer"
-              title="隐藏预览画面中的字幕"
+              title={t('sub.hidePreviewTitle')}
             >
               <EyeOff className="w-3 h-3 text-zinc-400" />
-              <span>关闭字幕预览</span>
+              <span>{t('sub.hidePreview')}</span>
             </button>
           )}
         </div>
@@ -74,17 +76,17 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
             className="flex-1 h-7 px-2.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 disabled:opacity-40 text-[11px] font-medium text-cyan-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
           >
             <FilePlus2 className="w-3.5 h-3.5" />
-            <span>导入字幕</span>
+            <span>{t('sub.importBtn')}</span>
           </button>
 
           <button
             disabled={!hasMedia || internalEnabledCount === 0 || isBusy}
             onClick={onExportBatchSubtitles}
             className="flex-1 h-7 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] disabled:opacity-35 text-[11px] font-medium text-zinc-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-            title="将勾选的内封字幕批量提取导出到指定文件夹"
+            title={t('sub.batchExportTitle')}
           >
             <FolderDown className="w-3.5 h-3.5 text-emerald-400" />
-            <span>批量导出 ({internalEnabledCount})</span>
+            <span>{t('sub.batchExportBtn', { n: internalEnabledCount })}</span>
           </button>
         </div>
       </div>
@@ -95,7 +97,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
           <div className="py-10 text-center space-y-2">
             <Subtitles className="w-7 h-7 text-zinc-700 mx-auto" />
             <div className="text-xs text-zinc-400">
-              {hasMedia ? '当前视频未包含内封字幕，可点击上方「导入字幕」' : '导入视频后将自动分析内封字幕'}
+              {hasMedia ? t('sub.emptyHasMedia') : t('sub.emptyNoMedia')}
             </div>
           </div>
         ) : (
@@ -123,14 +125,14 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                       className="w-3.5 h-3.5 accent-emerald-400 rounded cursor-pointer"
                     />
                     <span className="text-[11px] font-mono-num font-semibold text-sky-300 shrink-0">
-                      字幕 #{idx + 1}
+                      {t('sub.itemLabel', { n: idx + 1 })}
                     </span>
                     <span className="px-1.5 py-0.5 rounded bg-white/[0.07] text-[10px] font-mono-num uppercase text-zinc-200 shrink-0">
                       {sub.codec_name}
                     </span>
                     {isExternal && (
                       <span className="px-1.5 py-0.5 rounded bg-sky-500/20 text-[9px] font-medium text-sky-200 shrink-0">
-                        外挂
+                        {t('sub.externalBadge')}
                       </span>
                     )}
                   </label>
@@ -143,10 +145,10 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                           ? 'bg-sky-500 text-slate-950 font-semibold'
                           : 'bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300'
                       }`}
-                      title={isPreviewing ? '点击隐藏字幕预览' : '在视频画面中实时预览该字幕'}
+                      title={isPreviewing ? t('sub.previewHideTitle') : t('sub.previewShowTitle')}
                     >
                       <Eye className="w-3 h-3" />
-                      <span>{isPreviewing ? '预览中' : '预览'}</span>
+                      <span>{isPreviewing ? t('sub.previewing') : t('sub.preview')}</span>
                     </button>
 
                     {!isExternal && (
@@ -154,7 +156,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                         disabled={isBusy}
                         onClick={() => onExportSingleSubtitle(sub)}
                         className="p-1 rounded hover:bg-emerald-500/20 text-zinc-400 hover:text-emerald-300 disabled:opacity-35 cursor-pointer"
-                        title="单独导出此条字幕"
+                        title={t('sub.exportSingleTitle')}
                       >
                         <Download className="w-3.5 h-3.5" />
                       </button>
@@ -165,7 +167,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                       className={`p-1 rounded hover:bg-white/[0.08] cursor-pointer ${
                         sub.is_default ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-300'
                       }`}
-                      title="设为默认字幕轨"
+                      title={t('sub.setDefaultTitle')}
                     >
                       <Star className={`w-3.5 h-3.5 ${sub.is_default ? 'fill-amber-400' : ''}`} />
                     </button>
@@ -174,7 +176,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                       <button
                         onClick={() => onRemoveExternalSubtitle(sub.id)}
                         className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer"
-                        title="移除此外挂字幕"
+                        title={t('sub.removeExternalTitle')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -182,21 +184,21 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                   </div>
                 </div>
 
-                {/* Editable Chinese subtitle track name + language */}
+                {/* Editable subtitle track name + language */}
                 <div className="flex items-center gap-1.5">
                   <input
                     type="text"
                     value={sub.title}
                     onChange={(e) => onUpdateSubtitle(sub.id, { title: e.target.value })}
-                    placeholder="字幕名称（支持中文，如：简体中文 / 双语特效）"
+                    placeholder={t('sub.namePlaceholder')}
                     className="flex-1 h-7 px-2 rounded-md bg-black/45 border border-white/[0.08] focus:border-sky-400/60 text-[11px] text-zinc-100 placeholder:text-zinc-600 outline-none"
                   />
                   <input
                     type="text"
                     value={sub.language}
                     onChange={(e) => onUpdateSubtitle(sub.id, { language: e.target.value })}
-                    placeholder="语言"
-                    title="ISO 639-2 语言代码 (如 chi / eng / jpn)"
+                    placeholder={t('sub.langPlaceholder')}
+                    title={t('sub.langTitle')}
                     className="w-12 h-7 px-1.5 rounded-md bg-black/45 border border-white/[0.08] focus:border-sky-400/60 text-[10px] font-mono-num text-center text-zinc-300 placeholder:text-zinc-600 outline-none"
                   />
                 </div>
@@ -206,10 +208,10 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                   <div className="mt-2 pt-2 border-t border-white/[0.06] flex items-center justify-between gap-1.5">
                     <div
                       className="flex items-center gap-1 text-[10px] text-zinc-400 shrink-0"
-                      title="正数(+)表示延后出现，负数(-)表示提前出现；预览与导出均生效"
+                      title={t('sub.offsetTitle')}
                     >
                       <Clock className="w-3 h-3 text-sky-400" />
-                      <span>偏移(秒)</span>
+                      <span>{t('sub.offsetLabel')}</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
@@ -218,7 +220,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                           onSetSubtitleDelay(sub.id, Math.round((sub.delay_sec - 0.5) * 100) / 100)
                         }
                         className="h-6 px-1.5 rounded bg-white/[0.06] hover:bg-white/[0.13] text-[10px] font-mono-num text-zinc-300 cursor-pointer"
-                        title="提前 0.5 秒"
+                        title={t('sub.offsetEarlier', { s: '0.5' })}
                       >
                         -0.5
                       </button>
@@ -228,7 +230,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                           onSetSubtitleDelay(sub.id, Math.round((sub.delay_sec - 0.1) * 100) / 100)
                         }
                         className="h-6 px-1.5 rounded bg-white/[0.06] hover:bg-white/[0.13] text-[10px] font-mono-num text-zinc-300 cursor-pointer"
-                        title="提前 0.1 秒"
+                        title={t('sub.offsetEarlier', { s: '0.1' })}
                       >
                         -0.1
                       </button>
@@ -241,7 +243,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                           onSetSubtitleDelay(sub.id, Number.isFinite(v) ? v : 0);
                         }}
                         className="w-[54px] h-6 px-1 rounded bg-black/50 border border-white/[0.1] focus:border-sky-400/60 text-[11px] font-mono-num text-center text-sky-200 outline-none"
-                        title="手动输入偏移秒数 (+ 延后 / - 提前)"
+                        title={t('sub.offsetInputTitle')}
                       />
                       <button
                         type="button"
@@ -249,7 +251,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                           onSetSubtitleDelay(sub.id, Math.round((sub.delay_sec + 0.1) * 100) / 100)
                         }
                         className="h-6 px-1.5 rounded bg-white/[0.06] hover:bg-white/[0.13] text-[10px] font-mono-num text-zinc-300 cursor-pointer"
-                        title="延后 0.1 秒"
+                        title={t('sub.offsetLater', { s: '0.1' })}
                       >
                         +0.1
                       </button>
@@ -259,7 +261,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                           onSetSubtitleDelay(sub.id, Math.round((sub.delay_sec + 0.5) * 100) / 100)
                         }
                         className="h-6 px-1.5 rounded bg-white/[0.06] hover:bg-white/[0.13] text-[10px] font-mono-num text-zinc-300 cursor-pointer"
-                        title="延后 0.5 秒"
+                        title={t('sub.offsetLater', { s: '0.5' })}
                       >
                         +0.5
                       </button>
@@ -268,7 +270,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                           type="button"
                           onClick={() => onSetSubtitleDelay(sub.id, 0)}
                           className="h-6 w-6 rounded bg-white/[0.06] hover:bg-rose-500/20 text-zinc-400 hover:text-rose-300 flex items-center justify-center cursor-pointer"
-                          title="重置偏移为 0 秒"
+                          title={t('sub.offsetResetTitle')}
                         >
                           <RotateCcw className="w-3 h-3" />
                         </button>

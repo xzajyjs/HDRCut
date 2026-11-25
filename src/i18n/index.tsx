@@ -1,0 +1,629 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+
+export type Locale = 'en' | 'zh';
+
+const STORAGE_KEY = 'hdrcut.locale';
+
+export function getSavedLocale(): Locale | null {
+  try {
+    const v = window.localStorage.getItem(STORAGE_KEY);
+    if (v === 'en' || v === 'zh') return v;
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+const zh = {
+  // Window & Brand
+  'app.windowTitle': 'HDRCut — 无损 HDR 视频剪辑与音轨工作站',
+  'app.langToggleTitle': '切换界面语言 (English / 简体中文)',
+
+  // First-launch Language Modal
+  'langModal.title': 'Choose Language / 选择语言',
+  'langModal.subtitle': 'Select your preferred display language for HDRCut · 请选择您偏好的界面语言',
+  'langModal.hint': 'You can switch languages anytime from the top bar · 后续可随时在顶部栏一键切换',
+
+  // TabBar
+  'tab.newTabLabel': '新标签页 {n}',
+  'tab.newTabTitle': '新标签页 ({shortcut}⌘W 关闭)',
+  'tab.mediaTabTitle': '{path} ({shortcut}⌘W 关闭标签页)',
+  'tab.shortcutSwitch': '⌘{n} 切换 · ',
+  'tab.hasEdits': '当前标签页有待导出的剪辑或音轨/字幕修改',
+  'tab.closeTitle': '关闭标签页 (⌘W)',
+  'tab.addTitle': '新建标签页 (⌘T)',
+
+  // TopBar
+  'top.importVideo': '导入视频',
+  'top.replaceVideo': '更换视频',
+  'top.importTooltip': '导入视频文件 (⌘O / Ctrl+O)',
+  'top.close': '关闭',
+  'top.closeTooltip': '关闭当前视频预览',
+  'top.details': '详情',
+  'top.detailsTooltip': '查看完整视频/音频/字幕详细属性 (MediaInfo)',
+  'top.supportedFormats': '支持 MKV / MP4 / MOV',
+  'top.noLibmpv': '· 未检测到 libmpv',
+  'top.selectOutputDir': '选择导出目录',
+  'top.selectOutputDirTooltip': '点击选择导出目录',
+  'top.exportFormatTooltip': '选择导出封装格式',
+  'top.exporting': '导出中...',
+  'top.losslessExport': '无损导出 {fmt}',
+
+  // VideoViewport
+  'viewport.dropTitle': '拖入或导入视频文件',
+  'viewport.selectFile': '选择视频文件',
+  'viewport.cardHdr': '真 HDR 硬解引擎',
+  'viewport.cardLossless': '绝对零重编码',
+  'viewport.cardAudio': '多音轨混音命名',
+  'viewport.playerNotice': '视频播放器提示',
+  'viewport.rendering': '正在由原生 libmpv HDR 引擎渲染画面...',
+
+  // PlaybackControls
+  'play.prevKfTitle': '上一个关键帧 (Shift+←)',
+  'play.nextKfTitle': '下一个关键帧 (Shift+→)',
+  'play.kfShort': 'I帧',
+  'play.prevFrameTitle': '上一帧 (,)',
+  'play.nextFrameTitle': '下一帧 (.)',
+  'play.playPauseTitle': '播放 / 暂停 (Space)',
+  'play.timeEditorTitle': '输入 时:分:秒:帧，回车跳转，Esc 取消',
+  'play.timeClickTitle': '点击输入 时:分:秒:帧 精确跳转',
+  'play.segH': '时',
+  'play.segM': '分',
+  'play.segS': '秒',
+  'play.segF': '帧',
+  'play.markIn': '设入点 [I]',
+  'play.markInTitle': '在当前播放位置设入点 (快捷键 I)',
+  'play.markOut': '设出点 [O]',
+  'play.markOutTitle': '在当前播放位置设出点 (快捷键 O)',
+  'play.addRange': '添加区间',
+  'play.switchAudioTitle': '切换当前预览试听音轨',
+  'play.switchSubTitle': '切换当前画面预览字幕',
+  'play.subOff': '关闭字幕',
+  'play.hdrToggleTitle': '切换原生 HDR EDR 透传与 SDR 色调映射预览',
+  'play.hdrPassthrough': 'HDR 透传',
+  'play.sdrTonemap': 'SDR 映射',
+  'play.speedTitle': '播放倍速',
+  'play.muteTitle': '静音 / 取消静音',
+
+  // Timeline
+  'tl.emptyHint': '导入视频后可在此处拖动时间轴、查看关键帧 (I-frame) 与可视化剪辑区间',
+  'tl.keptSegments': '保留片段 ({n})',
+  'tl.removedRanges': '剪掉区间',
+  'tl.keyframes': '关键帧',
+  'tl.skim': '浏览',
+  'tl.cursor': '指针',
+  'tl.skimmingOn': '浏览预览 · 开',
+  'tl.skimmingOff': '浏览预览',
+  'tl.skimmingTitle': 'Final Cut Pro 风格时间轴悬停实时预览 (快捷键 S)：鼠标划过时间轴实时预览对应画面，移开后自动恢复播放头画面',
+  'tl.smartCutOn': '智能剪辑 · 帧精确',
+  'tl.smartCutOff': '仅关键帧 · 0重编码',
+  'tl.smartCutOnTitle': '智能剪辑已开启：支持任意帧精确切点，仅对切点处 1 个 GOP 局部匹配编码，其余 99% 画面保持 -c:v copy',
+  'tl.smartCutOffTitle': '纯关键帧模式：自动吸附最近关键帧，全程 100% 零重编码',
+  'tl.zoomOut': '缩小时间轴',
+  'tl.zoomIn': '放大时间轴',
+  'tl.resetZoom': '重置缩放',
+
+  // Right Panel Tabs
+  'panel.cut': '剪辑',
+  'panel.audio': '音轨',
+  'panel.subtitle': '字幕',
+
+  // CutListPanel
+  'cut.modeRemove': '剔除选中区间 (默认)',
+  'cut.modeKeep': '仅保留选中区间',
+  'cut.batchImport': '批量导入时间段',
+  'cut.clear': '清空',
+  'cut.clearTitle': '清空所有区间',
+  'cut.batchHeader': '粘贴批量时间段 (支持「和」、换行、逗号、末尾)',
+  'cut.batchPlaceholder': '例如: 00:01:25-00:02:10 和 00:28:12-00:50:00 和 00:59:32-末尾',
+  'cut.batchParsed': '已识别 {n} 个有效区间',
+  'cut.batchSnapNote': ' (导入时将自动吸附最近关键帧)',
+  'cut.replaceExisting': '覆盖现有区间',
+  'cut.importCount': '导入 {n} 段',
+  'cut.endPlaceholder': '末尾',
+  'cut.manualAddTitle': '手动添加区间',
+  'cut.errInvalidFormat': '时间格式无效，示例: 00:01:25 或 末尾',
+  'cut.errEndBeforeStart': '结束时间必须大于开始时间',
+  'cut.emptyTitle': '暂未添加剪辑区间',
+  'cut.emptyBodyPrefix': '可按',
+  'cut.emptyBodySuffix': '标记片段，或点击上方「批量导入时间段」。不添加任何区间时将导出完整视频（支持仅修改音轨）。',
+  'cut.removeBadge': '剪掉 #{n}',
+  'cut.keepBadge': '保留 #{n}',
+  'cut.duration': '时长 {t}',
+  'cut.jumpStartTitle': '跳转到起点预览',
+  'cut.deleteRangeTitle': '删除此区间',
+  'cut.start': '起点',
+  'cut.end': '终点',
+  'cut.clickJumpStart': '点击跳转到起点',
+  'cut.clickJumpEnd': '点击跳转到终点',
+  'cut.setCurrentStart': '设为当前起点',
+  'cut.setCurrentEnd': '设为当前终点',
+  'cut.footerStitched': '最终导出拼接 ({n} 段)',
+
+  // AudioTrackPanel
+  'audio.header': '音轨管理 ({orig} 独立 + {mix} 混音)',
+  'audio.mixBtn': '混合音轨',
+  'audio.importBtn': '导入音轨',
+  'audio.importTitle': '导入单条外部音轨 (FLAC / WAV / AAC / MP3 / AC3 / DTS 等)',
+  'audio.batchExportBtn': '批量导出 ({n})',
+  'audio.batchExportTitle': '将勾选的内封音轨批量无损提取到指定文件夹',
+  'audio.emptyHasMedia': '当前视频未包含音轨，可点击上方「导入音轨」',
+  'audio.emptyNoMedia': '导入视频后将自动分析所有音轨',
+  'audio.externalBadge': '外挂',
+  'audio.auditioning': '试听中',
+  'audio.audition': '试听',
+  'audio.auditionTitle': '在播放器中实时试听此音轨',
+  'audio.exportSingleTitle': '无损导出此单条音轨',
+  'audio.setDefaultTitle': '设为默认音轨',
+  'audio.removeExternalTitle': '移除此外部音轨',
+  'audio.moveUpTitle': '上移音轨顺序',
+  'audio.moveDownTitle': '下移音轨顺序',
+  'audio.namePlaceholder': '输入导出音轨名称（支持中文，如：国语配音 / 游戏原声）',
+  'audio.langPlaceholder': '语言',
+  'audio.langTitle': 'ISO 639-2 语言代码 (如 chi / eng / jpn)',
+  'audio.newMixTitle': '新建多音轨混合轨',
+  'audio.selectSourcesHint': '选择要混合的源音轨 (至少选择 2 条)：',
+  'audio.mixNamePlaceholder': '混合音轨名称（支持中文）',
+  'audio.codecFlac': 'FLAC 无损编码 (推荐)',
+  'audio.codecPcm': 'PCM / ALAC 无损',
+  'audio.codecAac': 'AAC 320kbps',
+  'audio.normalize': '防爆音衰减',
+  'audio.cancel': '取消',
+  'audio.addMixBtn': '添加混合音轨',
+  'audio.pendingMixHeader': '待生成混合音轨 ({n})',
+  'audio.mixLabel': '混合 [{tracks}]',
+  'audio.flacBadge': 'FLAC 无损',
+  'audio.removeMixTitle': '移除此混合音轨',
+  'audio.mixTitleInputPlaceholder': '输入混合音轨名称（支持中文）',
+  'audio.defaultMixName': '混合音轨',
+  'audio.defaultTrackPrefix': '音轨',
+
+  // SubtitlePanel
+  'sub.header': '字幕管理 ({enabled}/{total})',
+  'sub.hidePreview': '关闭字幕预览',
+  'sub.hidePreviewTitle': '隐藏预览画面中的字幕',
+  'sub.importBtn': '导入字幕',
+  'sub.batchExportBtn': '批量导出 ({n})',
+  'sub.batchExportTitle': '将勾选的内封字幕批量提取导出到指定文件夹',
+  'sub.emptyHasMedia': '当前视频未包含内封字幕，可点击上方「导入字幕」',
+  'sub.emptyNoMedia': '导入视频后将自动分析内封字幕',
+  'sub.itemLabel': '字幕 #{n}',
+  'sub.externalBadge': '外挂',
+  'sub.previewing': '预览中',
+  'sub.preview': '预览',
+  'sub.previewHideTitle': '点击隐藏字幕预览',
+  'sub.previewShowTitle': '在视频画面中实时预览该字幕',
+  'sub.exportSingleTitle': '单独导出此条字幕',
+  'sub.setDefaultTitle': '设为默认字幕轨',
+  'sub.removeExternalTitle': '移除此外挂字幕',
+  'sub.namePlaceholder': '字幕名称（支持中文，如：简体中文 / 双语特效）',
+  'sub.langPlaceholder': '语言',
+  'sub.langTitle': 'ISO 639-2 语言代码 (如 chi / eng / jpn)',
+  'sub.offsetLabel': '偏移(秒)',
+  'sub.offsetTitle': '正数(+)表示延后出现，负数(-)表示提前出现；预览与导出均生效',
+  'sub.offsetEarlier': '提前 {s} 秒',
+  'sub.offsetLater': '延后 {s} 秒',
+  'sub.offsetInputTitle': '手动输入偏移秒数 (+ 延后 / - 提前)',
+  'sub.offsetResetTitle': '重置偏移为 0 秒',
+
+  // MediaDetailsModal
+  'details.title': '媒体文件详细属性',
+  'details.copy': '复制属性',
+  'details.copied': '已复制',
+  'details.general': '常规信息 (General)',
+  'details.fullPath': '完整路径',
+  'details.container': '封装格式',
+  'details.fileSize': '文件大小',
+  'details.duration': '总时长',
+  'details.totalBitrate': '总码率',
+  'details.unknown': '未知',
+  'details.streams': '流统计',
+  'details.streamsVal': '共 {total} 条流（视频 {v} · 音频 {a} · 字幕 {s}）· 章节 {c}',
+  'details.muxer': '封装工具',
+  'details.videoStream': '视频流 (Video · Stream #{n})',
+  'details.videoCodec': '视频编码',
+  'details.resolution': '分辨率 / 比例',
+  'details.fps': '帧率 (FPS)',
+  'details.videoBitrate': '视频码率',
+  'details.estimatedBitrate': ' (总码率估算)',
+  'details.bitDepthPixFmt': '位深 / 像素格式',
+  'details.dynamicRange': '动态范围 (HDR)',
+  'details.sdr': 'SDR (标准动态范围)',
+  'details.colorInfo': '色彩信息',
+  'details.colorInfoVal': '色域: {p} · 传递: {t} · 矩阵: {m} · 范围: {r}',
+  'details.masterDisplay': 'HDR10 主显示',
+  'details.scanBFramesKf': '扫描 / B帧 / 关键帧',
+  'details.scanVal': '{field} · B帧缓冲: {b} · 关键帧: {k} 个 · Timebase: 1/{tb}',
+  'details.audioStreams': '音频流 ({n} 条)',
+  'details.audioTrackHeader': '音轨 #{n} (Stream #{s})',
+  'details.defaultTag': ' · 默认',
+  'details.codec': '编码格式',
+  'details.channelsRate': '声道 / 采样率',
+  'details.channelsSuffix': '声道',
+  'details.bitrate': '码率',
+  'details.unknownVbr': '未知 / VBR',
+  'details.langTitle': '语言 / 名称',
+  'details.unspecified': '未指定',
+  'details.untitled': '无标题',
+  'details.subtitleStreams': '字幕流 ({n} 条)',
+  'details.subTrackLabel': '字幕 #{n} (Stream #{s})',
+  'details.subTrackVal': '{codec} · 语言: {lang} · 名称: {title}',
+
+  // ExportProgressBar
+  'export.cancel': '取消导出',
+  'export.reveal': '打开所在文件夹',
+  'export.close': '关闭',
+
+  // App dialogs & status messages
+  'dlg.selectVideo': '选择要剪辑的视频文件',
+  'dlg.videoFiles': '视频文件',
+  'dlg.selectOutputDir': '选择默认导出目录',
+  'dlg.importAudio': '导入单条外部音轨',
+  'dlg.audioFiles': '音频文件',
+  'dlg.exportSingleAudio': '导出单条音轨',
+  'dlg.exportBatchAudio': '选择批量导出 {n} 条音轨的目标文件夹',
+  'dlg.importSubtitle': '导入外挂字幕文件',
+  'dlg.subtitleFiles': '字幕文件',
+  'dlg.exportSingleSubtitle': '导出单条字幕',
+  'dlg.exportBatchSubtitles': '选择批量导出 {n} 条字幕的目标文件夹',
+  'dlg.exportVideoTitle': '请输入导出文件名 (.{fmt})',
+  'msg.switchLoadFail': '切换标签页加载视频失败: {err}',
+  'msg.playerInitFail': '原生播放器初始化失败: {err}',
+  'msg.analyzeFail': '解析视频失败: {err}',
+  'msg.importAudioFail': '导入音轨失败: {err}',
+  'msg.importSubFail': '导入字幕失败: {err}',
+  'msg.extracting': '提取中',
+  'msg.batchCount': '批量 {n} 条',
+  'msg.exportingAudio': '正在无损导出音轨「{title}」...',
+  'msg.exportedAudio': '音轨「{title}」导出完成！',
+  'msg.exportingBatchAudio': '正在批量无损导出 {n} 条音轨...',
+  'msg.exportedBatchAudio': '已批量无损导出 {n} 条音轨！',
+  'msg.exportingSub': '正在导出字幕「{title}」...',
+  'msg.exportedSub': '字幕「{title}」导出完成！',
+  'msg.exportingBatchSub': '正在批量导出 {n} 条字幕...',
+  'msg.exportedBatchSub': '已批量导出 {n} 条字幕！',
+  'msg.externalAudioDefault': '外部音轨',
+  'msg.externalSubDefault': '外挂字幕',
+  'msg.mixedTrackDefault': '混合音轨',
+} as const;
+
+export type TranslationKey = keyof typeof zh;
+
+const en: Record<TranslationKey, string> = {
+  // Window & Brand
+  'app.windowTitle': 'HDRCut — Lossless HDR Video & Audio Workstation',
+  'app.langToggleTitle': 'Switch Language (English / 简体中文)',
+
+  // First-launch Language Modal
+  'langModal.title': 'Choose Language / 选择语言',
+  'langModal.subtitle': 'Select your preferred display language for HDRCut · 请选择您偏好的界面语言',
+  'langModal.hint': 'You can switch languages anytime from the top bar · 后续可随时在顶部栏一键切换',
+
+  // TabBar
+  'tab.newTabLabel': 'New Tab {n}',
+  'tab.newTabTitle': 'New Tab ({shortcut}⌘W Close)',
+  'tab.mediaTabTitle': '{path} ({shortcut}⌘W Close Tab)',
+  'tab.shortcutSwitch': '⌘{n} Switch · ',
+  'tab.hasEdits': 'Unsaved cut ranges or track changes in this tab',
+  'tab.closeTitle': 'Close Tab (⌘W)',
+  'tab.addTitle': 'New Tab (⌘T)',
+
+  // TopBar
+  'top.importVideo': 'Import Video',
+  'top.replaceVideo': 'Replace',
+  'top.importTooltip': 'Import video file (⌘O / Ctrl+O)',
+  'top.close': 'Close',
+  'top.closeTooltip': 'Close current video preview',
+  'top.details': 'Details',
+  'top.detailsTooltip': 'Inspect full video/audio/subtitle properties (MediaInfo)',
+  'top.supportedFormats': 'Supports MKV / MP4 / MOV',
+  'top.noLibmpv': '· libmpv not found',
+  'top.selectOutputDir': 'Output Folder',
+  'top.selectOutputDirTooltip': 'Choose default output directory',
+  'top.exportFormatTooltip': 'Select export container format',
+  'top.exporting': 'Exporting...',
+  'top.losslessExport': 'Export {fmt}',
+
+  // VideoViewport
+  'viewport.dropTitle': 'Drop or Import a Video File',
+  'viewport.selectFile': 'Select Video File',
+  'viewport.cardHdr': 'True HDR Hardware Engine',
+  'viewport.cardLossless': 'Zero Re-encode Copy',
+  'viewport.cardAudio': 'Multi-Track Audio & Mix',
+  'viewport.playerNotice': 'Video Player Notice',
+  'viewport.rendering': 'Rendering via native libmpv HDR engine...',
+
+  // PlaybackControls
+  'play.prevKfTitle': 'Previous Keyframe (Shift+←)',
+  'play.nextKfTitle': 'Next Keyframe (Shift+→)',
+  'play.kfShort': 'KF',
+  'play.prevFrameTitle': 'Previous Frame (,)',
+  'play.nextFrameTitle': 'Next Frame (.)',
+  'play.playPauseTitle': 'Play / Pause (Space)',
+  'play.timeEditorTitle': 'Enter HH:MM:SS:FF, Enter to seek, Esc to cancel',
+  'play.timeClickTitle': 'Click to jump to exact HH:MM:SS:FF',
+  'play.segH': 'HH',
+  'play.segM': 'MM',
+  'play.segS': 'SS',
+  'play.segF': 'FF',
+  'play.markIn': 'Mark In [I]',
+  'play.markInTitle': 'Set In point at current position (I)',
+  'play.markOut': 'Mark Out [O]',
+  'play.markOutTitle': 'Set Out point at current position (O)',
+  'play.addRange': 'Add Range',
+  'play.switchAudioTitle': 'Switch preview audio track',
+  'play.switchSubTitle': 'Switch preview subtitle track',
+  'play.subOff': 'Subtitles Off',
+  'play.hdrToggleTitle': 'Toggle native HDR EDR passthrough vs SDR tone-mapping',
+  'play.hdrPassthrough': 'HDR Direct',
+  'play.sdrTonemap': 'SDR Map',
+  'play.speedTitle': 'Playback speed',
+  'play.muteTitle': 'Mute / Unmute',
+
+  // Timeline
+  'tl.emptyHint': 'Import a video to scrub the timeline, inspect keyframes (I-frames), and mark cut ranges',
+  'tl.keptSegments': 'Kept ({n})',
+  'tl.removedRanges': 'Removed',
+  'tl.keyframes': 'Keyframes',
+  'tl.skim': 'Skim',
+  'tl.cursor': 'Cursor',
+  'tl.skimmingOn': 'Skimming · On',
+  'tl.skimmingOff': 'Skimming',
+  'tl.skimmingTitle': 'Final Cut Pro–style hover preview (Shortcut S): hover over timeline to preview frames live; move away to restore playhead',
+  'tl.smartCutOn': 'Smart Cut · Frame Exact',
+  'tl.smartCutOff': 'Keyframes Only · 0-Encode',
+  'tl.smartCutOnTitle': 'Smart Cut enabled: frame-accurate cuts by re-encoding only boundary GOPs while 99%+ stays -c:v copy',
+  'tl.smartCutOffTitle': 'Keyframe-only mode: snaps to nearest I-frame with 100% zero re-encoding',
+  'tl.zoomOut': 'Zoom Out',
+  'tl.zoomIn': 'Zoom In',
+  'tl.resetZoom': 'Reset Zoom',
+
+  // Right Panel Tabs
+  'panel.cut': 'Cut',
+  'panel.audio': 'Audio',
+  'panel.subtitle': 'Subtitles',
+
+  // CutListPanel
+  'cut.modeRemove': 'Remove Ranges (Default)',
+  'cut.modeKeep': 'Keep Selected Only',
+  'cut.batchImport': 'Batch Import Ranges',
+  'cut.clear': 'Clear',
+  'cut.clearTitle': 'Clear all ranges',
+  'cut.batchHeader': 'Paste batch ranges (supports lines, commas, "and", "end")',
+  'cut.batchPlaceholder': 'e.g. 00:01:25-00:02:10, 00:28:12-00:50:00, 00:59:32-end',
+  'cut.batchParsed': 'Parsed {n} valid range(s)',
+  'cut.batchSnapNote': ' (snaps to nearest keyframe)',
+  'cut.replaceExisting': 'Replace existing',
+  'cut.importCount': 'Import {n}',
+  'cut.endPlaceholder': 'end',
+  'cut.manualAddTitle': 'Add range manually',
+  'cut.errInvalidFormat': 'Invalid time format (e.g. 00:01:25 or end)',
+  'cut.errEndBeforeStart': 'End time must be greater than start time',
+  'cut.emptyTitle': 'No cut ranges yet',
+  'cut.emptyBodyPrefix': 'Press',
+  'cut.emptyBodySuffix': 'to mark a segment, or click "Batch Import Ranges". Exporting with no ranges exports the full video (supports track-only edits).',
+  'cut.removeBadge': 'Cut #{n}',
+  'cut.keepBadge': 'Keep #{n}',
+  'cut.duration': 'Len {t}',
+  'cut.jumpStartTitle': 'Jump to range start',
+  'cut.deleteRangeTitle': 'Delete range',
+  'cut.start': 'Start',
+  'cut.end': 'End',
+  'cut.clickJumpStart': 'Click to seek to start',
+  'cut.clickJumpEnd': 'Click to seek to end',
+  'cut.setCurrentStart': 'Set to Playhead',
+  'cut.setCurrentEnd': 'Set to Playhead',
+  'cut.footerStitched': 'Output Segments ({n})',
+
+  // AudioTrackPanel
+  'audio.header': 'Audio Tracks ({orig} Track + {mix} Mix)',
+  'audio.mixBtn': 'Mix Tracks',
+  'audio.importBtn': 'Import Audio',
+  'audio.importTitle': 'Import an external audio track (FLAC / WAV / AAC / MP3 / AC3 / DTS)',
+  'audio.batchExportBtn': 'Batch Export ({n})',
+  'audio.batchExportTitle': 'Losslessly extract checked internal audio tracks into a folder',
+  'audio.emptyHasMedia': 'No audio tracks in this video. Click "Import Audio" above.',
+  'audio.emptyNoMedia': 'Import a video to inspect all audio tracks',
+  'audio.externalBadge': 'EXT',
+  'audio.auditioning': 'Playing',
+  'audio.audition': 'Listen',
+  'audio.auditionTitle': 'Audition this audio track live in the player',
+  'audio.exportSingleTitle': 'Losslessly export this single audio track',
+  'audio.setDefaultTitle': 'Set as default audio track',
+  'audio.removeExternalTitle': 'Remove external audio track',
+  'audio.moveUpTitle': 'Move track up',
+  'audio.moveDownTitle': 'Move track down',
+  'audio.namePlaceholder': 'Track title (UTF-8 supported, e.g. Commentary / Original)',
+  'audio.langPlaceholder': 'Lang',
+  'audio.langTitle': 'ISO 639-2 language code (e.g. eng / chi / jpn)',
+  'audio.newMixTitle': 'Create Mixed Audio Track',
+  'audio.selectSourcesHint': 'Select source tracks to mix (at least 2):',
+  'audio.mixNamePlaceholder': 'Mixed track title (UTF-8 supported)',
+  'audio.codecFlac': 'FLAC Lossless (Recommended)',
+  'audio.codecPcm': 'PCM / ALAC Lossless',
+  'audio.codecAac': 'AAC 320kbps',
+  'audio.normalize': 'Anti-clip normalize',
+  'audio.cancel': 'Cancel',
+  'audio.addMixBtn': 'Add Mix Track',
+  'audio.pendingMixHeader': 'Mixed Tracks ({n})',
+  'audio.mixLabel': 'Mix [{tracks}]',
+  'audio.flacBadge': 'FLAC Lossless',
+  'audio.removeMixTitle': 'Remove mixed track',
+  'audio.mixTitleInputPlaceholder': 'Mixed track title (UTF-8 supported)',
+  'audio.defaultMixName': 'Mixed Audio',
+  'audio.defaultTrackPrefix': 'Track',
+
+  // SubtitlePanel
+  'sub.header': 'Subtitles ({enabled}/{total})',
+  'sub.hidePreview': 'Hide Subtitles',
+  'sub.hidePreviewTitle': 'Hide subtitles in video preview',
+  'sub.importBtn': 'Import Subtitle',
+  'sub.batchExportBtn': 'Batch Export ({n})',
+  'sub.batchExportTitle': 'Extract checked internal subtitles into a folder',
+  'sub.emptyHasMedia': 'No embedded subtitles. Click "Import Subtitle" above.',
+  'sub.emptyNoMedia': 'Import a video to inspect embedded subtitles',
+  'sub.itemLabel': 'Sub #{n}',
+  'sub.externalBadge': 'EXT',
+  'sub.previewing': 'Active',
+  'sub.preview': 'Preview',
+  'sub.previewHideTitle': 'Click to hide subtitle preview',
+  'sub.previewShowTitle': 'Preview this subtitle live in the video',
+  'sub.exportSingleTitle': 'Export this subtitle track',
+  'sub.setDefaultTitle': 'Set as default subtitle track',
+  'sub.removeExternalTitle': 'Remove external subtitle',
+  'sub.namePlaceholder': 'Subtitle title (UTF-8 supported, e.g. English / Bilingual)',
+  'sub.langPlaceholder': 'Lang',
+  'sub.langTitle': 'ISO 639-2 language code (e.g. eng / chi / jpn)',
+  'sub.offsetLabel': 'Offset (s)',
+  'sub.offsetTitle': 'Positive (+) delays subtitle, negative (-) advances it; applies to preview and export',
+  'sub.offsetEarlier': 'Earlier by {s}s',
+  'sub.offsetLater': 'Later by {s}s',
+  'sub.offsetInputTitle': 'Subtitle offset in seconds (+ delay / - advance)',
+  'sub.offsetResetTitle': 'Reset offset to 0s',
+
+  // MediaDetailsModal
+  'details.title': 'Media Properties',
+  'details.copy': 'Copy Info',
+  'details.copied': 'Copied',
+  'details.general': 'General',
+  'details.fullPath': 'File Path',
+  'details.container': 'Container',
+  'details.fileSize': 'File Size',
+  'details.duration': 'Duration',
+  'details.totalBitrate': 'Overall Bitrate',
+  'details.unknown': 'Unknown',
+  'details.streams': 'Streams',
+  'details.streamsVal': '{total} streams (Video {v} · Audio {a} · Subtitle {s}) · Chapters {c}',
+  'details.muxer': 'Writing App',
+  'details.videoStream': 'Video Stream (#{n})',
+  'details.videoCodec': 'Video Codec',
+  'details.resolution': 'Resolution / Aspect',
+  'details.fps': 'Frame Rate (FPS)',
+  'details.videoBitrate': 'Video Bitrate',
+  'details.estimatedBitrate': ' (estimated)',
+  'details.bitDepthPixFmt': 'Bit Depth / Pix Fmt',
+  'details.dynamicRange': 'Dynamic Range (HDR)',
+  'details.sdr': 'SDR (Standard Dynamic Range)',
+  'details.colorInfo': 'Color Space',
+  'details.colorInfoVal': 'Primaries: {p} · Transfer: {t} · Matrix: {m} · Range: {r}',
+  'details.masterDisplay': 'HDR10 Mastering',
+  'details.scanBFramesKf': 'Scan / B-Frames / KF',
+  'details.scanVal': '{field} · B-Frames: {b} · Keyframes: {k} · Timebase: 1/{tb}',
+  'details.audioStreams': 'Audio Streams ({n})',
+  'details.audioTrackHeader': 'Audio #{n} (Stream #{s})',
+  'details.defaultTag': ' · Default',
+  'details.codec': 'Codec',
+  'details.channelsRate': 'Channels / Sample Rate',
+  'details.channelsSuffix': 'ch',
+  'details.bitrate': 'Bitrate',
+  'details.unknownVbr': 'Unknown / VBR',
+  'details.langTitle': 'Language / Title',
+  'details.unspecified': 'Unspecified',
+  'details.untitled': 'Untitled',
+  'details.subtitleStreams': 'Subtitle Streams ({n})',
+  'details.subTrackLabel': 'Subtitle #{n} (Stream #{s})',
+  'details.subTrackVal': '{codec} · Lang: {lang} · Title: {title}',
+
+  // ExportProgressBar
+  'export.cancel': 'Cancel',
+  'export.reveal': 'Show in Folder',
+  'export.close': 'Close',
+
+  // App dialogs & status messages
+  'dlg.selectVideo': 'Select Video File to Edit',
+  'dlg.videoFiles': 'Video Files',
+  'dlg.selectOutputDir': 'Select Default Output Folder',
+  'dlg.importAudio': 'Import External Audio Track',
+  'dlg.audioFiles': 'Audio Files',
+  'dlg.exportSingleAudio': 'Export Single Audio Track',
+  'dlg.exportBatchAudio': 'Select Folder for Batch Audio Export ({n} tracks)',
+  'dlg.importSubtitle': 'Import External Subtitle File',
+  'dlg.subtitleFiles': 'Subtitle Files',
+  'dlg.exportSingleSubtitle': 'Export Single Subtitle',
+  'dlg.exportBatchSubtitles': 'Select Folder for Batch Subtitle Export ({n} tracks)',
+  'dlg.exportVideoTitle': 'Save Exported Video (.{fmt})',
+  'msg.switchLoadFail': 'Failed to load video on tab switch: {err}',
+  'msg.playerInitFail': 'Native player init failed: {err}',
+  'msg.analyzeFail': 'Failed to analyze media: {err}',
+  'msg.importAudioFail': 'Failed to import audio track: {err}',
+  'msg.importSubFail': 'Failed to import subtitle: {err}',
+  'msg.extracting': 'Extracting',
+  'msg.batchCount': 'Batch {n}',
+  'msg.exportingAudio': 'Losslessly exporting audio "{title}"...',
+  'msg.exportedAudio': 'Audio track "{title}" exported!',
+  'msg.exportingBatchAudio': 'Batch exporting {n} audio tracks...',
+  'msg.exportedBatchAudio': 'Exported {n} audio tracks!',
+  'msg.exportingSub': 'Exporting subtitle "{title}"...',
+  'msg.exportedSub': 'Subtitle "{title}" exported!',
+  'msg.exportingBatchSub': 'Batch exporting {n} subtitles...',
+  'msg.exportedBatchSub': 'Exported {n} subtitles!',
+  'msg.externalAudioDefault': 'External Audio',
+  'msg.externalSubDefault': 'External Subtitle',
+  'msg.mixedTrackDefault': 'Mixed Audio',
+};
+
+const DICTIONARIES: Record<Locale, Record<TranslationKey, string>> = { zh, en };
+
+interface I18nContextValue {
+  locale: Locale;
+  needsLanguageSetup: boolean;
+  setLocale: (next: Locale) => void;
+  toggleLocale: () => void;
+  t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
+}
+
+const I18nContext = createContext<I18nContextValue | null>(null);
+
+export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const initialSaved = getSavedLocale();
+  const [locale, setLocaleState] = useState<Locale>(initialSaved ?? 'en');
+  const [needsLanguageSetup, setNeedsLanguageSetup] = useState<boolean>(initialSaved === null);
+
+  const setLocale = useCallback((next: Locale) => {
+    setLocaleState(next);
+    setNeedsLanguageSetup(false);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const toggleLocale = useCallback(() => {
+    setLocale(locale === 'zh' ? 'en' : 'zh');
+  }, [locale, setLocale]);
+
+  const t = useCallback(
+    (key: TranslationKey, vars?: Record<string, string | number>): string => {
+      let text = DICTIONARIES[locale][key] ?? DICTIONARIES.en[key] ?? key;
+      if (vars) {
+        for (const [k, v] of Object.entries(vars)) {
+          text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+        }
+      }
+      return text;
+    },
+    [locale]
+  );
+
+  // Keep native desktop window title synced with selected language
+  useEffect(() => {
+    const title = DICTIONARIES[locale]['app.windowTitle'];
+    document.title = title;
+    getCurrentWindow().setTitle(title).catch(() => {});
+  }, [locale]);
+
+  const value = useMemo(
+    () => ({ locale, needsLanguageSetup, setLocale, toggleLocale, t }),
+    [locale, needsLanguageSetup, setLocale, toggleLocale, t]
+  );
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+};
+
+export function useI18n(): I18nContextValue {
+  const ctx = useContext(I18nContext);
+  if (!ctx) throw new Error('useI18n must be used within I18nProvider');
+  return ctx;
+}

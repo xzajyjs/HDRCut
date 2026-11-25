@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { EditableAudioTrack, MixedAudioTrackConfig } from '../types/media';
 import { formatBitrate } from '../utils/timecode';
+import { useI18n } from '../i18n';
 
 interface AudioTrackPanelProps {
   hasMedia: boolean;
@@ -54,18 +55,19 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
   onUpdateMixedTrack,
   onDeleteMixedTrack,
 }) => {
+  const { t } = useI18n();
   const [creatingMix, setCreatingMix] = useState(false);
   const [selectedSources, setSelectedSources] = useState<number[]>([]);
   const [gainsDb, setGainsDb] = useState<Record<number, number>>({});
-  const [mixTitle, setMixTitle] = useState('混合音轨');
+  const [mixTitle, setMixTitle] = useState('');
   const [mixCodec, setMixCodec] = useState<'flac' | 'pcm_s24le' | 'aac'>('flac');
   const [mixNormalize, setMixNormalize] = useState(false);
 
-  const internalTracks = tracks.filter((t) => t.source_kind === 'internal');
-  const enabledInternalCount = internalTracks.filter((t) => t.enabled).length;
+  const internalTracks = tracks.filter((tr) => tr.source_kind === 'internal');
+  const enabledInternalCount = internalTracks.filter((tr) => tr.enabled).length;
 
   const openMixBuilder = () => {
-    const defaults = internalTracks.slice(0, 2).map((t) => t.audio_index);
+    const defaults = internalTracks.slice(0, 2).map((tr) => tr.audio_index);
     setSelectedSources(defaults);
     const initialGains: Record<number, number> = {};
     defaults.forEach((idx) => {
@@ -74,8 +76,8 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
     setGainsDb(initialGains);
     setMixTitle(
       defaults.length >= 2
-        ? `${internalTracks[0]?.title || '音轨1'}+${internalTracks[1]?.title || '音轨2'}混音`
-        : '多轨混音'
+        ? `${internalTracks[0]?.title || `${t('audio.defaultTrackPrefix')}1`}+${internalTracks[1]?.title || `${t('audio.defaultTrackPrefix')}2`}`
+        : t('audio.defaultMixName')
     );
     setMixCodec('flac');
     setMixNormalize(false);
@@ -94,7 +96,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
       id: `mix_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       source_audio_indices: [...selectedSources],
       gains_db: { ...gainsDb },
-      title: mixTitle.trim() || '混合音轨',
+      title: mixTitle.trim() || t('audio.defaultMixName'),
       codec: mixCodec,
       normalize: mixNormalize,
       enabled: true,
@@ -103,7 +105,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
     setCreatingMix(false);
   };
 
-  const enabledOriginalCount = tracks.filter((t) => t.enabled).length;
+  const enabledOriginalCount = tracks.filter((tr) => tr.enabled).length;
   const enabledMixedCount = mixedTracks.filter((m) => m.enabled).length;
 
   return (
@@ -112,7 +114,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
       <div className="p-3 border-b border-white/[0.06] space-y-2 shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="text-xs font-semibold text-zinc-100">
-            音轨管理 ({enabledOriginalCount} 独立 + {enabledMixedCount} 混音)
+            {t('audio.header', { orig: enabledOriginalCount, mix: enabledMixedCount })}
           </div>
           {internalTracks.length >= 2 && (
             <button
@@ -120,7 +122,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
               className="h-6 px-2 rounded-md bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 text-[10px] font-medium text-cyan-300 flex items-center gap-1 transition-colors cursor-pointer shrink-0"
             >
               <Plus className="w-3 h-3" />
-              <span>混合音轨</span>
+              <span>{t('audio.mixBtn')}</span>
             </button>
           )}
         </div>
@@ -130,20 +132,20 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
             disabled={!hasMedia || isBusy}
             onClick={onImportAudioTrack}
             className="flex-1 h-7 px-2.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 disabled:opacity-40 text-[11px] font-medium text-cyan-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-            title="导入单条外部音轨 (FLAC / WAV / AAC / MP3 / AC3 / DTS 等)"
+            title={t('audio.importTitle')}
           >
             <FilePlus2 className="w-3.5 h-3.5" />
-            <span>导入音轨</span>
+            <span>{t('audio.importBtn')}</span>
           </button>
 
           <button
             disabled={!hasMedia || enabledInternalCount === 0 || isBusy}
             onClick={onExportBatchAudio}
             className="flex-1 h-7 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] disabled:opacity-35 text-[11px] font-medium text-zinc-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-            title="将勾选的内封音轨批量无损提取到指定文件夹"
+            title={t('audio.batchExportTitle')}
           >
             <FolderDown className="w-3.5 h-3.5 text-emerald-400" />
-            <span>批量导出 ({enabledInternalCount})</span>
+            <span>{t('audio.batchExportBtn', { n: enabledInternalCount })}</span>
           </button>
         </div>
       </div>
@@ -154,7 +156,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
           <div className="py-10 text-center space-y-2">
             <Volume2 className="w-7 h-7 text-zinc-700 mx-auto" />
             <div className="text-xs text-zinc-400">
-              {hasMedia ? '当前视频未包含音轨，可点击上方「导入音轨」' : '导入视频后将自动分析所有音轨'}
+              {hasMedia ? t('audio.emptyHasMedia') : t('audio.emptyNoMedia')}
             </div>
           </div>
         ) : (
@@ -191,7 +193,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                         </span>
                         {isExternal && (
                           <span className="px-1 py-0.5 rounded bg-emerald-500/20 text-[9px] font-medium text-emerald-200 shrink-0">
-                            外挂
+                            {t('audio.externalBadge')}
                           </span>
                         )}
                         <span className="text-[10px] text-zinc-400 truncate">
@@ -208,10 +210,10 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                               ? 'bg-cyan-500 text-slate-950 font-semibold'
                               : 'bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300'
                           }`}
-                          title="在播放器中实时试听此音轨"
+                          title={t('audio.auditionTitle')}
                         >
                           <Headphones className="w-3 h-3" />
-                          <span>{isPreviewing ? '试听中' : '试听'}</span>
+                          <span>{isPreviewing ? t('audio.auditioning') : t('audio.audition')}</span>
                         </button>
 
                         {!isExternal && (
@@ -219,7 +221,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                             disabled={isBusy}
                             onClick={() => onExportSingleAudio(track)}
                             className="p-1 rounded hover:bg-emerald-500/20 text-zinc-400 hover:text-emerald-300 disabled:opacity-35 cursor-pointer"
-                            title="无损导出此单条音轨"
+                            title={t('audio.exportSingleTitle')}
                           >
                             <Download className="w-3.5 h-3.5" />
                           </button>
@@ -230,7 +232,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                           className={`p-1 rounded hover:bg-white/[0.08] cursor-pointer ${
                             track.is_default ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-300'
                           }`}
-                          title="设为默认音轨"
+                          title={t('audio.setDefaultTitle')}
                         >
                           <Star className={`w-3.5 h-3.5 ${track.is_default ? 'fill-amber-400' : ''}`} />
                         </button>
@@ -239,7 +241,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                           <button
                             onClick={() => onRemoveExternalTrack(track.id)}
                             className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer"
-                            title="移除此外部音轨"
+                            title={t('audio.removeExternalTitle')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -249,7 +251,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                               disabled={idx === 0}
                               onClick={() => onMoveTrack(idx, -1)}
                               className="p-1 rounded hover:bg-white/[0.08] text-zinc-500 hover:text-zinc-200 disabled:opacity-25 cursor-pointer"
-                              title="上移音轨顺序"
+                              title={t('audio.moveUpTitle')}
                             >
                               <ArrowUp className="w-3 h-3" />
                             </button>
@@ -257,7 +259,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                               disabled={idx === tracks.length - 1}
                               onClick={() => onMoveTrack(idx, 1)}
                               className="p-1 rounded hover:bg-white/[0.08] text-zinc-500 hover:text-zinc-200 disabled:opacity-25 cursor-pointer"
-                              title="下移音轨顺序"
+                              title={t('audio.moveDownTitle')}
                             >
                               <ArrowDown className="w-3 h-3" />
                             </button>
@@ -266,21 +268,21 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* Editable Chinese Track Name + Language */}
+                    {/* Editable Track Name + Language */}
                     <div className="flex items-center gap-1.5">
                       <input
                         type="text"
                         value={track.title}
                         onChange={(e) => onUpdateTrack(track.id, { title: e.target.value })}
-                        placeholder="输入导出音轨名称（支持中文，如：国语配音 / 游戏原声）"
+                        placeholder={t('audio.namePlaceholder')}
                         className="flex-1 h-7 px-2 rounded-md bg-black/45 border border-white/[0.08] focus:border-cyan-400/60 text-[11px] text-zinc-100 placeholder:text-zinc-600 outline-none"
                       />
                       <input
                         type="text"
                         value={track.language}
                         onChange={(e) => onUpdateTrack(track.id, { language: e.target.value })}
-                        placeholder="语言"
-                        title="ISO 639-2 语言代码 (如 chi / eng / jpn)"
+                        placeholder={t('audio.langPlaceholder')}
+                        title={t('audio.langTitle')}
                         className="w-12 h-7 px-1.5 rounded-md bg-black/45 border border-white/[0.08] focus:border-cyan-400/60 text-[10px] font-mono-num text-center text-zinc-300 placeholder:text-zinc-600 outline-none"
                       />
                     </div>
@@ -295,7 +297,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-cyan-300 flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5" />
-                    新建多音轨混合轨
+                    {t('audio.newMixTitle')}
                   </span>
                   <button
                     onClick={() => setCreatingMix(false)}
@@ -306,13 +308,13 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                 </div>
 
                 <div className="space-y-1.5">
-                  <div className="text-[10px] text-zinc-400">选择要混合的源音轨 (至少选择 2 条)：</div>
-                  {internalTracks.map((t) => {
-                    const checked = selectedSources.includes(t.audio_index);
-                    const gain = gainsDb[t.audio_index] ?? 0;
+                  <div className="text-[10px] text-zinc-400">{t('audio.selectSourcesHint')}</div>
+                  {internalTracks.map((tr) => {
+                    const checked = selectedSources.includes(tr.audio_index);
+                    const gain = gainsDb[tr.audio_index] ?? 0;
                     return (
                       <div
-                        key={t.id}
+                        key={tr.id}
                         className={`px-2 py-1.5 rounded-lg border flex items-center justify-between gap-2 ${
                           checked
                             ? 'bg-cyan-500/10 border-cyan-500/35'
@@ -323,11 +325,11 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={() => toggleSourceInMix(t.audio_index)}
+                            onChange={() => toggleSourceInMix(tr.audio_index)}
                             className="accent-cyan-400"
                           />
                           <span className="truncate">
-                            #{t.audio_index + 1} {t.title || t.codec_name}
+                            #{tr.audio_index + 1} {tr.title || tr.codec_name}
                           </span>
                         </label>
 
@@ -342,7 +344,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                               onChange={(e) =>
                                 setGainsDb((prev) => ({
                                   ...prev,
-                                  [t.audio_index]: Number(e.target.value),
+                                  [tr.audio_index]: Number(e.target.value),
                                 }))
                               }
                               className="w-16 accent-cyan-400 cursor-pointer"
@@ -362,7 +364,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                     type="text"
                     value={mixTitle}
                     onChange={(e) => setMixTitle(e.target.value)}
-                    placeholder="混合音轨名称（支持中文）"
+                    placeholder={t('audio.mixNamePlaceholder')}
                     className="w-full h-7 px-2 rounded-md bg-black/50 border border-white/[0.1] focus:border-cyan-400/60 text-[11px] text-zinc-100 outline-none"
                   />
                   <div className="flex items-center justify-between gap-2">
@@ -371,9 +373,9 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                       onChange={(e) => setMixCodec(e.target.value as 'flac' | 'pcm_s24le' | 'aac')}
                       className="h-7 px-2 rounded-md bg-black/50 border border-white/[0.1] text-[11px] text-zinc-200 outline-none cursor-pointer"
                     >
-                      <option value="flac">FLAC 无损编码 (推荐)</option>
-                      <option value="pcm_s24le">PCM / ALAC 无损</option>
-                      <option value="aac">AAC 320kbps</option>
+                      <option value="flac">{t('audio.codecFlac')}</option>
+                      <option value="pcm_s24le">{t('audio.codecPcm')}</option>
+                      <option value="aac">{t('audio.codecAac')}</option>
                     </select>
 
                     <label className="flex items-center gap-1 text-[10px] text-zinc-400 cursor-pointer">
@@ -383,7 +385,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                         onChange={(e) => setMixNormalize(e.target.checked)}
                         className="accent-cyan-400"
                       />
-                      <span>防爆音衰减</span>
+                      <span>{t('audio.normalize')}</span>
                     </label>
                   </div>
                 </div>
@@ -393,7 +395,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                     onClick={() => setCreatingMix(false)}
                     className="h-7 px-2.5 rounded-lg bg-white/[0.06] text-[11px] text-zinc-300 cursor-pointer"
                   >
-                    取消
+                    {t('audio.cancel')}
                   </button>
                   <button
                     disabled={selectedSources.length < 2}
@@ -401,7 +403,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                     className="h-7 px-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-35 text-slate-950 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
                   >
                     <Check className="w-3.5 h-3.5" />
-                    <span>添加混合音轨</span>
+                    <span>{t('audio.addMixBtn')}</span>
                   </button>
                 </div>
               </div>
@@ -412,7 +414,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
               <div className="pt-1 space-y-2">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-cyan-400/90 flex items-center gap-1">
                   <Layers className="w-3 h-3" />
-                  <span>待生成混合音轨 ({mixedTracks.length})</span>
+                  <span>{t('audio.pendingMixHeader', { n: mixedTracks.length })}</span>
                 </div>
 
                 {mixedTracks.map((mix) => (
@@ -435,11 +437,13 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                           className="accent-cyan-400"
                         />
                         <span className="text-[11px] font-semibold text-cyan-200">
-                          混合 [{mix.source_audio_indices.map((i) => `#${i + 1}`).join(' + ')}]
+                          {t('audio.mixLabel', {
+                            tracks: mix.source_audio_indices.map((i) => `#${i + 1}`).join(' + '),
+                          })}
                         </span>
                         <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-[9px] font-mono-num uppercase text-cyan-200">
                           {mix.codec === 'flac'
-                            ? 'FLAC 无损'
+                            ? t('audio.flacBadge')
                             : mix.codec === 'pcm_s24le'
                             ? 'PCM/ALAC'
                             : 'AAC 320k'}
@@ -452,14 +456,14 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                           className={`p-1 rounded hover:bg-white/[0.08] cursor-pointer ${
                             mix.is_default ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-300'
                           }`}
-                          title="设为默认音轨"
+                          title={t('audio.setDefaultTitle')}
                         >
                           <Star className={`w-3.5 h-3.5 ${mix.is_default ? 'fill-amber-400' : ''}`} />
                         </button>
                         <button
                           onClick={() => onDeleteMixedTrack(mix.id)}
                           className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer"
-                          title="移除此混合音轨"
+                          title={t('audio.removeMixTitle')}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -470,7 +474,7 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                       type="text"
                       value={mix.title}
                       onChange={(e) => onUpdateMixedTrack(mix.id, { title: e.target.value })}
-                      placeholder="输入混合音轨名称（支持中文）"
+                      placeholder={t('audio.mixTitleInputPlaceholder')}
                       className="w-full h-7 px-2 rounded-md bg-black/45 border border-white/[0.08] focus:border-cyan-400/60 text-[11px] text-zinc-100 outline-none"
                     />
                   </div>

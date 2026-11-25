@@ -13,6 +13,7 @@ import {
 import type { CutMode, CutRange, ExportSegment } from '../types/media';
 import { formatTimecode, parseBatchTimeRanges, parseTimeToken } from '../utils/timecode';
 import { snapToNearestKeyframe } from '../utils/segments';
+import { useI18n } from '../i18n';
 
 interface CutListPanelProps {
   duration: number;
@@ -47,6 +48,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
   onClearRanges,
   onSeek,
 }) => {
+  const { t } = useI18n();
   const [showBatch, setShowBatch] = useState(false);
   const [batchText, setBatchText] = useState('');
   const [replaceExisting, setReplaceExisting] = useState(false);
@@ -87,11 +89,11 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
     const s = parseTimeToken(manualStart, duration);
     const e = parseTimeToken(manualEnd, duration);
     if (s === null || e === null) {
-      setManualError('时间格式无效，示例: 00:01:25 或 末尾');
+      setManualError(t('cut.errInvalidFormat'));
       return;
     }
     if (e <= s) {
-      setManualError('结束时间必须大于开始时间');
+      setManualError(t('cut.errEndBeforeStart'));
       return;
     }
     const finalS = snapKeyframes && keyframes.length > 0 ? snapToNearestKeyframe(s, keyframes, duration) : s;
@@ -114,7 +116,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            剔除选中区间 (默认)
+            {t('cut.modeRemove')}
           </button>
           <button
             onClick={() => onCutModeChange('keep')}
@@ -124,7 +126,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            仅保留选中区间
+            {t('cut.modeKeep')}
           </button>
         </div>
 
@@ -139,16 +141,16 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
             }`}
           >
             <ClipboardPaste className="w-3.5 h-3.5 text-cyan-400" />
-            <span>批量导入时间段</span>
+            <span>{t('cut.batchImport')}</span>
           </button>
 
           {ranges.length > 0 && (
             <button
               onClick={onClearRanges}
               className="h-8 px-2.5 rounded-lg bg-white/[0.04] hover:bg-rose-500/20 border border-white/[0.07] hover:border-rose-500/30 text-[11px] text-zinc-400 hover:text-rose-300 transition cursor-pointer"
-              title="清空所有区间"
+              title={t('cut.clearTitle')}
             >
-              清空
+              {t('cut.clear')}
             </button>
           )}
         </div>
@@ -158,7 +160,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
           <div className="p-2.5 rounded-xl bg-[#131824] border border-cyan-500/30 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-cyan-300">
-                粘贴批量时间段 (支持「和」、换行、逗号、末尾)
+                {t('cut.batchHeader')}
               </span>
               <button
                 onClick={() => setShowBatch(false)}
@@ -171,15 +173,15 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
               rows={3}
               value={batchText}
               onChange={(e) => setBatchText(e.target.value)}
-              placeholder="例如: 00:01:25-00:02:10 和 00:28:12-00:50:00 和 00:59:32-末尾"
+              placeholder={t('cut.batchPlaceholder')}
               className="w-full rounded-lg bg-black/50 border border-white/[0.09] focus:border-cyan-400/60 p-2 text-[11px] font-mono-num text-zinc-100 placeholder:text-zinc-600 outline-none resize-none"
             />
 
             {parsedBatch.ranges.length > 0 && (
               <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
                 <div className="text-[10px] text-emerald-400 font-medium">
-                  已识别 {parsedBatch.ranges.length} 个有效区间
-                  {snapKeyframes && keyframes.length > 0 ? ' (导入时将自动吸附最近关键帧)' : ''}：
+                  {t('cut.batchParsed', { n: parsedBatch.ranges.length })}
+                  {snapKeyframes && keyframes.length > 0 ? t('cut.batchSnapNote') : ''}
                 </div>
                 {parsedBatch.ranges.map((r, idx) => {
                   const snapS = snapToNearestKeyframe(r.start, keyframes, duration);
@@ -194,7 +196,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
                       </span>
                       {snapKeyframes && keyframes.length > 0 && (
                         <span className="text-amber-300/90">
-                          I帧 {formatTimecode(snapS)}~{formatTimecode(snapE)}
+                          {t('play.kfShort')} {formatTimecode(snapS)}~{formatTimecode(snapE)}
                         </span>
                       )}
                     </div>
@@ -218,7 +220,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
                   onChange={(e) => setReplaceExisting(e.target.checked)}
                   className="accent-cyan-400"
                 />
-                <span>覆盖现有区间</span>
+                <span>{t('cut.replaceExisting')}</span>
               </label>
               <button
                 disabled={parsedBatch.ranges.length === 0}
@@ -226,7 +228,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
                 className="h-7 px-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-35 text-slate-950 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
               >
                 <Check className="w-3.5 h-3.5" />
-                <span>导入 {parsedBatch.ranges.length} 段</span>
+                <span>{t('cut.importCount', { n: parsedBatch.ranges.length })}</span>
               </button>
             </div>
           </div>
@@ -248,14 +250,14 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
             disabled={duration <= 0}
             value={manualEnd}
             onChange={(e) => setManualEnd(e.target.value)}
-            placeholder="末尾"
+            placeholder={t('cut.endPlaceholder')}
             className="w-full h-7 px-2 rounded-md bg-black/40 border border-white/[0.08] focus:border-cyan-500/50 text-[11px] font-mono-num text-zinc-200 placeholder:text-zinc-600 outline-none"
           />
           <button
             disabled={duration <= 0 || !manualStart || !manualEnd}
             onClick={handleManualAdd}
             className="h-7 px-2 rounded-md bg-white/[0.08] hover:bg-white/[0.14] disabled:opacity-35 text-zinc-100 shrink-0 cursor-pointer"
-            title="手动添加区间"
+            title={t('cut.manualAddTitle')}
           >
             <Plus className="w-3.5 h-3.5" />
           </button>
@@ -268,10 +270,12 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
         {ranges.length === 0 ? (
           <div className="py-8 text-center space-y-2">
             <Scissors className="w-7 h-7 text-zinc-700 mx-auto" />
-            <div className="text-xs text-zinc-400">暂未添加剪辑区间</div>
+            <div className="text-xs text-zinc-400">{t('cut.emptyTitle')}</div>
             <div className="text-[11px] text-zinc-600 leading-relaxed px-4">
-              可按 <kbd className="px-1 py-0.5 rounded bg-white/[0.06] text-zinc-400">I</kbd> /{' '}
-              <kbd className="px-1 py-0.5 rounded bg-white/[0.06] text-zinc-400">O</kbd> 标记片段，或点击上方「批量导入时间段」。不添加任何区间时将导出完整视频（支持仅修改音轨）。
+              {t('cut.emptyBodyPrefix')}{' '}
+              <kbd className="px-1 py-0.5 rounded bg-white/[0.06] text-zinc-400">I</kbd> /{' '}
+              <kbd className="px-1 py-0.5 rounded bg-white/[0.06] text-zinc-400">O</kbd>{' '}
+              {t('cut.emptyBodySuffix')}
             </div>
           </div>
         ) : (
@@ -295,24 +299,26 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
                           : 'bg-emerald-500/25 text-emerald-300'
                       }`}
                     >
-                      {cutMode === 'remove' ? `剪掉 #${index + 1}` : `保留 #${index + 1}`}
+                      {cutMode === 'remove'
+                        ? t('cut.removeBadge', { n: index + 1 })
+                        : t('cut.keepBadge', { n: index + 1 })}
                     </span>
                     <span className="text-[10px] font-mono-num text-zinc-400">
-                      时长 {formatTimecode(len)}
+                      {t('cut.duration', { t: formatTimecode(len) })}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => onSeek(r.start, true)}
                       className="p-1 rounded hover:bg-white/[0.08] text-zinc-400 hover:text-cyan-300 cursor-pointer"
-                      title="跳转到起点预览"
+                      title={t('cut.jumpStartTitle')}
                     >
                       <Play className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => onDeleteRange(r.id)}
                       className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer"
-                      title="删除此区间"
+                      title={t('cut.deleteRangeTitle')}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>
@@ -323,17 +329,17 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
                   <button
                     onClick={() => onSeek(r.start, true)}
                     className="text-left px-2 py-1 rounded bg-black/35 hover:bg-black/55 border border-white/[0.06] text-zinc-200 cursor-pointer"
-                    title="点击跳转到起点"
+                    title={t('cut.clickJumpStart')}
                   >
-                    <span className="text-[9px] text-zinc-500 block">起点</span>
+                    <span className="text-[9px] text-zinc-500 block">{t('cut.start')}</span>
                     {formatTimecode(r.start, true)}
                   </button>
                   <button
                     onClick={() => onSeek(r.end, true)}
                     className="text-left px-2 py-1 rounded bg-black/35 hover:bg-black/55 border border-white/[0.06] text-zinc-200 cursor-pointer"
-                    title="点击跳转到终点"
+                    title={t('cut.clickJumpEnd')}
                   >
-                    <span className="text-[9px] text-zinc-500 block">终点</span>
+                    <span className="text-[9px] text-zinc-500 block">{t('cut.end')}</span>
                     {formatTimecode(r.end, true)}
                   </button>
                 </div>
@@ -349,7 +355,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
                     }}
                     className="text-zinc-500 hover:text-cyan-300 cursor-pointer"
                   >
-                    设为当前起点
+                    {t('cut.setCurrentStart')}
                   </button>
                   <button
                     onClick={() => {
@@ -360,7 +366,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
                     }}
                     className="text-zinc-500 hover:text-amber-300 cursor-pointer"
                   >
-                    设为当前终点
+                    {t('cut.setCurrentEnd')}
                   </button>
                 </div>
               </div>
@@ -374,7 +380,7 @@ export const CutListPanel: React.FC<CutListPanelProps> = ({
         <div className="flex items-center justify-between text-[11px]">
           <span className="text-zinc-400 flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-emerald-400" />
-            最终导出拼接 ({keptSegments.length} 段)
+            {t('cut.footerStitched', { n: keptSegments.length })}
           </span>
           <span className="font-mono-num font-semibold text-emerald-300">
             {formatTimecode(totalKeptDuration)}

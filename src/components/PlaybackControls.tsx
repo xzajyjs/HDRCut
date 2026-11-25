@@ -19,6 +19,7 @@ import type {
   PlayerStateEvent,
 } from '../types/media';
 import { formatTimecode } from '../utils/timecode';
+import { useI18n } from '../i18n';
 
 interface PlaybackControlsProps {
   disabled: boolean;
@@ -91,6 +92,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   onMarkOut,
   onCommitDraftRange,
 }) => {
+  const { t } = useI18n();
   const effectiveDuration = duration || playerState.duration || 0;
   const effectiveFps = fps > 0.5 ? fps : 30;
   const muted = playerState.volume <= 0.1;
@@ -205,7 +207,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
     }
   };
 
-  const segmentLabels = ['时', '分', '秒', '帧'];
+  const segmentLabels = [t('play.segH'), t('play.segM'), t('play.segS'), t('play.segF')];
 
   return (
     <div className="h-[48px] shrink-0 bg-[#10141d] border-t border-b border-white/[0.07] px-3 flex items-center justify-between gap-2">
@@ -215,17 +217,17 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           disabled={disabled}
           onClick={() => onStepKeyframe('prev')}
           className="h-7 px-2 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
-          title="上一个关键帧 (Shift+←)"
+          title={t('play.prevKfTitle')}
         >
           <SkipBack className="w-3.5 h-3.5 text-amber-400" />
-          <span className="hidden xl:inline text-[10px] text-amber-300/90">I帧</span>
+          <span className="hidden xl:inline text-[10px] text-amber-300/90">{t('play.kfShort')}</span>
         </button>
 
         <button
           disabled={disabled}
           onClick={() => onStepFrame(false)}
           className="h-7 w-7 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center justify-center transition-colors cursor-pointer"
-          title="上一帧 (,)"
+          title={t('play.prevFrameTitle')}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -234,7 +236,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           disabled={disabled}
           onClick={onTogglePause}
           className="h-8 w-8 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 disabled:opacity-35 flex items-center justify-center shadow-md shadow-cyan-500/20 transition-colors cursor-pointer"
-          title="播放 / 暂停 (Space)"
+          title={t('play.playPauseTitle')}
         >
           {playerState.paused ? (
             <Play className="w-4 h-4 fill-slate-950 ml-0.5" />
@@ -247,7 +249,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           disabled={disabled}
           onClick={() => onStepFrame(true)}
           className="h-7 w-7 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center justify-center transition-colors cursor-pointer"
-          title="下一帧 (.)"
+          title={t('play.nextFrameTitle')}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -256,9 +258,9 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           disabled={disabled}
           onClick={() => onStepKeyframe('next')}
           className="h-7 px-2 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
-          title="下一个关键帧 (Shift+→)"
+          title={t('play.nextKfTitle')}
         >
-          <span className="hidden xl:inline text-[10px] text-amber-300/90">I帧</span>
+          <span className="hidden xl:inline text-[10px] text-amber-300/90">{t('play.kfShort')}</span>
           <SkipForward className="w-3.5 h-3.5 text-amber-400" />
         </button>
 
@@ -285,7 +287,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             ref={editorWrapRef}
             onBlur={handleEditorBlur}
             className="ml-2 px-2 py-0.5 rounded-md bg-black/75 border border-cyan-400/70 font-mono-num text-[12px] text-cyan-200 flex items-center gap-0.5 shadow-sm shadow-cyan-500/20"
-            title="输入 时:分:秒:帧，回车跳转，Esc 取消"
+            title={t('play.timeEditorTitle')}
           >
             {[0, 1, 2, 3].map((idx) => (
               <React.Fragment key={idx}>
@@ -313,7 +315,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             disabled={disabled}
             onClick={openTimeEditor}
             className="ml-2 px-2.5 py-1 rounded-md bg-black/40 hover:bg-black/65 border border-white/[0.06] hover:border-cyan-400/40 font-mono-num text-[12px] text-zinc-100 flex items-center gap-1.5 transition-colors cursor-pointer disabled:cursor-default disabled:hover:border-white/[0.06]"
-            title="点击输入 时:分:秒:帧 精确跳转"
+            title={t('play.timeClickTitle')}
           >
             <span className="text-cyan-300">
               {splitTimeToParts(playerState.time_pos, effectiveFps).join(':')}
@@ -334,9 +336,9 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
               ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200'
               : 'bg-white/[0.05] hover:bg-white/[0.1] border-white/[0.08] text-zinc-200'
           }`}
-          title="在当前播放位置设入点 (快捷键 I)"
+          title={t('play.markInTitle')}
         >
-          设入点 [I]{draftIn !== null ? ` ${formatTimecode(draftIn)}` : ''}
+          {t('play.markIn')}{draftIn !== null ? ` ${formatTimecode(draftIn)}` : ''}
         </button>
 
         <button
@@ -347,9 +349,9 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
               ? 'bg-amber-500/20 border-amber-400/50 text-amber-200'
               : 'bg-white/[0.05] hover:bg-white/[0.1] border-white/[0.08] text-zinc-200'
           }`}
-          title="在当前播放位置设出点 (快捷键 O)"
+          title={t('play.markOutTitle')}
         >
-          设出点 [O]{draftOut !== null ? ` ${formatTimecode(draftOut)}` : ''}
+          {t('play.markOut')}{draftOut !== null ? ` ${formatTimecode(draftOut)}` : ''}
         </button>
 
         {draftIn !== null && draftOut !== null && draftOut > draftIn && (
@@ -358,12 +360,12 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             className="h-7 px-2.5 rounded-md bg-rose-500 hover:bg-rose-400 text-white text-[11px] font-semibold flex items-center gap-1 shadow-md shadow-rose-500/25 transition-colors cursor-pointer"
           >
             <Scissors className="w-3 h-3" />
-            <span>添加区间</span>
+            <span>{t('play.addRange')}</span>
           </button>
         )}
       </div>
 
-      {/* Right: Preview Audio Switcher, HDR Toggle, Speed, Volume */}
+      {/* Right: Preview Audio Switcher, Subtitle Switcher, HDR Toggle, Speed, Volume */}
       <div className="flex items-center gap-2">
         {audioTracks.length > 1 && (
           <div className="flex items-center gap-1 bg-white/[0.05] border border-white/[0.07] rounded-md px-1.5 h-7">
@@ -373,7 +375,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
               value={playerState.aid}
               onChange={(e) => onSelectPreviewAudio(Number(e.target.value))}
               className="bg-transparent text-[11px] text-zinc-200 outline-none max-w-[115px] cursor-pointer"
-              title="切换当前预览试听音轨"
+              title={t('play.switchAudioTitle')}
             >
               {audioTracks.map((t) => (
                 <option key={t.mpv_aid} value={t.mpv_aid} className="bg-[#111520] text-zinc-100">
@@ -392,10 +394,10 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
               value={playerState.sid}
               onChange={(e) => onSelectPreviewSubtitle(Number(e.target.value))}
               className="bg-transparent text-[11px] text-zinc-200 outline-none max-w-[110px] cursor-pointer"
-              title="切换当前画面预览字幕"
+              title={t('play.switchSubTitle')}
             >
               <option value={0} className="bg-[#111520] text-zinc-400">
-                关闭字幕
+                {t('play.subOff')}
               </option>
               {subtitleTracks.map((s, i) => (
                 <option key={s.id} value={s.mpv_sid} className="bg-[#111520] text-zinc-100">
@@ -415,10 +417,10 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                 ? 'bg-amber-500/20 border-amber-400/50 text-amber-300'
                 : 'bg-white/[0.05] border-white/[0.08] text-zinc-400'
             }`}
-            title="切换原生 HDR EDR 透传与 SDR 色调映射预览"
+            title={t('play.hdrToggleTitle')}
           >
             <Sparkles className="w-3 h-3" />
-            <span>{playerState.hdr_passthrough ? 'HDR 透传' : 'SDR 映射'}</span>
+            <span>{playerState.hdr_passthrough ? t('play.hdrPassthrough') : t('play.sdrTonemap')}</span>
           </button>
         )}
 
@@ -427,7 +429,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           value={playerState.speed}
           onChange={(e) => onSetSpeed(Number(e.target.value))}
           className="h-7 px-1.5 rounded-md bg-white/[0.05] border border-white/[0.07] text-[11px] font-mono-num text-zinc-200 outline-none cursor-pointer disabled:opacity-35"
-          title="播放倍速"
+          title={t('play.speedTitle')}
         >
           {SPEEDS.map((s) => (
             <option key={s} value={s} className="bg-[#111520] text-zinc-100">
@@ -441,7 +443,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             disabled={disabled}
             onClick={() => onSetVolume(muted ? 100 : 0)}
             className="text-zinc-400 hover:text-zinc-200 cursor-pointer disabled:opacity-35"
-            title="静音 / 取消静音"
+            title={t('play.muteTitle')}
           >
             {muted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>

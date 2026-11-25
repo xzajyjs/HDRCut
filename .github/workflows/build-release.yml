@@ -2,14 +2,11 @@ name: Build & Release (macOS + Windows)
 
 on:
   push:
-    branches: [main]
     tags: ['v*']
-  pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
       create_release:
-        description: 'Upload build artifacts to GitHub Release (when run on a tag or latest version)'
+        description: 'Publish build artifacts to GitHub Release'
         required: false
         default: false
         type: boolean
@@ -243,10 +240,10 @@ jobs:
 
           footer = (
               "\n\n---\n\n"
-              "### 安装包说明 / Downloads\n"
-              f"- **macOS (Apple Silicon arm64)**: `HDRCut-{ver}-macos-arm64.dmg`（内置 `libmpv`、`ffmpeg`、`ffprobe`；首次打开若被安全拦截，可运行 `xattr -cr /Applications/HDRCut.app`）\n"
-              f"- **Windows (x64 Portable)**: `HDRCut-{ver}-windows-x64-portable.zip`（绿色免安装，解压后双击 `HDRCut.exe` 即可运行）\n\n"
-              f"> 📜 查看所有历史版本的完整更新日志：[CHANGELOG.md](https://github.com/{repo}/blob/main/CHANGELOG.md)\n"
+              "### Downloads / 安装包说明\n"
+              f"- **macOS (Apple Silicon arm64)**: `HDRCut-{ver}-macos-arm64.dmg` — self-contained (`libmpv`, `ffmpeg`, `ffprobe` bundled). If Gatekeeper warns on first launch, run `xattr -cr /Applications/HDRCut.app`.\n"
+              f"- **Windows (x64 Portable)**: `HDRCut-{ver}-windows-x64-portable.zip` — extract and run `HDRCut.exe` directly.\n\n"
+              f"> 📜 Full release history / 查看所有历史版本更新日志: [CHANGELOG.md](https://github.com/{repo}/blob/main/CHANGELOG.md)\n"
           )
 
           with open("release-notes.md", "w", encoding="utf-8") as f:

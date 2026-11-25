@@ -28,6 +28,8 @@ import { AudioTrackPanel } from './components/AudioTrackPanel';
 import { SubtitlePanel } from './components/SubtitlePanel';
 import { ExportProgressBar } from './components/ExportProgressBar';
 import { MediaDetailsModal } from './components/MediaDetailsModal';
+import { LanguageModal } from './components/LanguageModal';
+import { useI18n } from './i18n';
 
 const INITIAL_PLAYER_STATE: PlayerStateEvent = {
   time_pos: 0,
@@ -107,6 +109,7 @@ function subtitleExtForCodec(codec: string): string {
 }
 
 export function App() {
+  const { t, needsLanguageSetup } = useI18n();
   const [toolStatus, setToolStatus] = useState<ToolStatus | null>(null);
   const [isNativeReady, setIsNativeReady] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -246,10 +249,10 @@ export function App() {
     } catch (err) {
       updateTab(tab.id, (prev) => ({
         ...prev,
-        playerError: `切换标签页加载视频失败: ${String(err)}`,
+        playerError: t('msg.switchLoadFail', { err: String(err) }),
       }));
     }
-  }, [updateTab]);
+  }, [t, updateTab]);
 
   // Tab Actions: Select, Step, New, Close
   const handleSelectTab = useCallback(
@@ -438,7 +441,7 @@ export function App() {
           } catch (err) {
             updateTab(targetTabId, (prev) => ({
               ...prev,
-              playerError: `原生播放器初始化失败: ${String(err)}`,
+              playerError: t('msg.playerInitFail', { err: String(err) }),
             }));
           }
         }
@@ -446,11 +449,11 @@ export function App() {
         updateTab(targetTabId, (prev) => ({
           ...prev,
           isAnalyzing: false,
-          playerError: `解析视频失败: ${String(err)}`,
+          playerError: t('msg.analyzeFail', { err: String(err) }),
         }));
       }
     },
-    [handleSkimEnd, updateTab]
+    [handleSkimEnd, t, updateTab]
   );
 
   const handleCloseVideoInTab = useCallback(async () => {
@@ -471,10 +474,10 @@ export function App() {
   const handleImportVideo = useCallback(async () => {
     const selected = await open({
       multiple: false,
-      title: '选择要剪辑的视频文件',
+      title: t('dlg.selectVideo'),
       filters: [
         {
-          name: '视频文件',
+          name: t('dlg.videoFiles'),
           extensions: ['mkv', 'mp4', 'mov', 'm4v', 'ts', 'm2ts', 'webm', 'avi', 'flv'],
         },
       ],
@@ -482,7 +485,7 @@ export function App() {
     if (typeof selected === 'string') {
       await handleLoadVideoPath(selected);
     }
-  }, [handleLoadVideoPath]);
+  }, [handleLoadVideoPath, t]);
 
   // Subscribe to native Tauri events (mpv-state, export-progress, menu shortcuts, file drop)
   const handleCloseTabRef = useRef(handleCloseTab);
@@ -608,13 +611,13 @@ export function App() {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: '选择默认导出目录',
+      title: t('dlg.selectOutputDir'),
       defaultPath: activeTab.outputDir || undefined,
     });
     if (typeof selected === 'string') {
       updateActiveTab((prev) => ({ ...prev, outputDir: selected }));
     }
-  }, [activeTab.outputDir, updateActiveTab]);
+  }, [activeTab.outputDir, t, updateActiveTab]);
 
   // Playback Controls
   const handleTogglePause = useCallback(() => {
@@ -938,10 +941,10 @@ export function App() {
     if (!media) return;
     const selected = await open({
       multiple: false,
-      title: '导入单条外部音轨',
+      title: t('dlg.importAudio'),
       filters: [
         {
-          name: '音频文件',
+          name: t('dlg.audioFiles'),
           extensions: ['flac', 'wav', 'aac', 'm4a', 'mp3', 'opus', 'ogg', 'ac3', 'eac3', 'dts', 'mka'],
         },
       ],
@@ -952,7 +955,7 @@ export function App() {
       const info = await invoke<ExternalAudioInfo>('probe_external_audio_file', {
         filePath: selected,
       });
-      const nextAid = activeTab.audioTracks.reduce((mx, t) => Math.max(mx, t.mpv_aid), 0) + 1;
+      const nextAid = activeTab.audioTracks.reduce((mx, tr) => Math.max(mx, tr.mpv_aid), 0) + 1;
       const newTrack: EditableAudioTrack = {
         id: `ext_a_${Date.now()}`,
         source_kind: 'external',
@@ -983,11 +986,11 @@ export function App() {
         expected_duration_sec: 0,
         speed: '',
         written_bytes: 0,
-        message: `导入音轨失败: ${String(err)}`,
+        message: t('msg.importAudioFail', { err: String(err) }),
         output_path: '',
       });
     }
-  }, [media, activeTab.audioTracks, updateActiveTab]);
+  }, [media, activeTab.audioTracks, t, updateActiveTab]);
 
   const handleExportSingleAudio = useCallback(
     async (track: EditableAudioTrack) => {
@@ -998,9 +1001,9 @@ export function App() {
       const defaultName = `${base}_${label}.${ext}`;
       const baseDir = activeTab.outputDir || getDirName(media.file_path);
       const chosen = await save({
-        title: '导出单条音轨',
+        title: t('dlg.exportSingleAudio'),
         defaultPath: baseDir ? joinPath(baseDir, defaultName) : defaultName,
-        filters: [{ name: `${track.codec_name.toUpperCase()} 音轨`, extensions: [ext] }],
+        filters: [{ name: `${track.codec_name.toUpperCase()}`, extensions: [ext] }],
       });
       if (!chosen) return;
 
@@ -1010,9 +1013,9 @@ export function App() {
         percent: 35,
         out_time_sec: 0,
         expected_duration_sec: duration,
-        speed: '提取中',
+        speed: t('msg.extracting'),
         written_bytes: 0,
-        message: `正在无损导出音轨「${track.title}」...`,
+        message: t('msg.exportingAudio', { title: track.title }),
         output_path: chosen,
       });
       try {
@@ -1033,7 +1036,7 @@ export function App() {
           expected_duration_sec: duration,
           speed: '',
           written_bytes: 0,
-          message: `音轨「${track.title}」导出完成！`,
+          message: t('msg.exportedAudio', { title: track.title }),
           output_path: chosen,
         });
       } catch (err) {
@@ -1051,32 +1054,32 @@ export function App() {
         setIsExtracting(false);
       }
     },
-    [media, activeTab.outputDir, duration]
+    [media, activeTab.outputDir, duration, t]
   );
 
   const handleExportBatchAudio = useCallback(async () => {
     if (!media) return;
     const targets = activeTab.audioTracks.filter(
-      (t) => t.enabled && t.source_kind === 'internal'
+      (tr) => tr.enabled && tr.source_kind === 'internal'
     );
     if (targets.length === 0) return;
 
     const dir = await open({
       directory: true,
       multiple: false,
-      title: `选择批量导出 ${targets.length} 条音轨的目标文件夹`,
+      title: t('dlg.exportBatchAudio', { n: targets.length }),
       defaultPath: activeTab.outputDir || getDirName(media.file_path) || undefined,
     });
     if (typeof dir !== 'string') return;
 
     const base = getBaseNameWithoutExt(media.file_name);
-    const items = targets.map((t) => {
-      const ext = audioExtForCodec(t.codec_name);
-      const label = sanitizeFilePart(t.title || `音轨${t.audio_index + 1}`);
+    const items = targets.map((tr) => {
+      const ext = audioExtForCodec(tr.codec_name);
+      const label = sanitizeFilePart(tr.title || `track${tr.audio_index + 1}`);
       return {
-        audio_index: t.audio_index,
-        output_path: joinPath(dir, `${base}_音轨${t.audio_index + 1}_${label}.${ext}`),
-        codec_name: t.codec_name,
+        audio_index: tr.audio_index,
+        output_path: joinPath(dir, `${base}_audio${tr.audio_index + 1}_${label}.${ext}`),
+        codec_name: tr.codec_name,
       };
     });
 
@@ -1086,9 +1089,9 @@ export function App() {
       percent: 30,
       out_time_sec: 0,
       expected_duration_sec: duration,
-      speed: `批量 ${items.length} 条`,
+      speed: t('msg.batchCount', { n: items.length }),
       written_bytes: 0,
-      message: `正在无损批量提取 ${items.length} 条音轨...`,
+      message: t('msg.exportingBatchAudio', { n: items.length }),
       output_path: items[0].output_path,
     });
 
@@ -1104,7 +1107,7 @@ export function App() {
         expected_duration_sec: duration,
         speed: '',
         written_bytes: 0,
-        message: `已批量无损导出 ${outs.length} 条音轨！`,
+        message: t('msg.exportedBatchAudio', { n: outs.length }),
         output_path: outs[0] || dir,
       });
     } catch (err) {
@@ -1121,7 +1124,7 @@ export function App() {
     } finally {
       setIsExtracting(false);
     }
-  }, [media, activeTab.audioTracks, activeTab.outputDir, duration]);
+  }, [media, activeTab.audioTracks, activeTab.outputDir, duration, t]);
 
   // Subtitle Operations (Preview, Delay Offset, Import, Single/Batch Export)
   const handleUpdateSubtitle = useCallback(
@@ -1180,10 +1183,10 @@ export function App() {
     if (!media) return;
     const selected = await open({
       multiple: true,
-      title: '导入字幕文件 (.srt / .ass / .ssa / .vtt / .sup)',
+      title: t('dlg.importSubtitle'),
       filters: [
         {
-          name: '字幕文件',
+          name: t('dlg.subtitleFiles'),
           extensions: ['srt', 'ass', 'ssa', 'vtt', 'sup', 'sub'],
         },
       ],
@@ -1226,7 +1229,7 @@ export function App() {
           expected_duration_sec: 0,
           speed: '',
           written_bytes: 0,
-          message: `导入字幕失败: ${String(err)}`,
+          message: t('msg.importSubFail', { err: String(err) }),
           output_path: '',
         });
       }
@@ -1241,21 +1244,21 @@ export function App() {
       }));
       invoke('player_set_sub_delay', { seconds: 0 }).catch(() => {});
     }
-  }, [media, activeTab.subtitleTracks, updateActiveTab]);
+  }, [media, activeTab.subtitleTracks, t, updateActiveTab]);
 
   const handleExportSingleSubtitle = useCallback(
     async (sub: EditableSubtitleTrack) => {
       if (!media || sub.source_kind !== 'internal' || sub.subtitle_index === undefined) return;
       const ext = subtitleExtForCodec(sub.codec_name);
       const base = getBaseNameWithoutExt(media.file_name);
-      const label = sanitizeFilePart(sub.title || `字幕${sub.subtitle_index + 1}`);
+      const label = sanitizeFilePart(sub.title || `sub${sub.subtitle_index + 1}`);
       const defaultName = `${base}_${label}.${ext}`;
       const baseDir = activeTab.outputDir || getDirName(media.file_path);
 
       const chosen = await save({
-        title: '导出单条字幕',
+        title: t('dlg.exportSingleSubtitle'),
         defaultPath: baseDir ? joinPath(baseDir, defaultName) : defaultName,
-        filters: [{ name: `${ext.toUpperCase()} 字幕`, extensions: [ext] }],
+        filters: [{ name: `${ext.toUpperCase()}`, extensions: [ext] }],
       });
       if (!chosen) return;
 
@@ -1265,9 +1268,9 @@ export function App() {
         percent: 40,
         out_time_sec: 0,
         expected_duration_sec: duration,
-        speed: '提取中',
+        speed: t('msg.extracting'),
         written_bytes: 0,
-        message: `正在导出字幕「${sub.title}」...`,
+        message: t('msg.exportingSub', { title: sub.title }),
         output_path: chosen,
       });
 
@@ -1289,7 +1292,7 @@ export function App() {
           expected_duration_sec: duration,
           speed: '',
           written_bytes: 0,
-          message: `字幕「${sub.title}」导出完成！`,
+          message: t('msg.exportedSub', { title: sub.title }),
           output_path: chosen,
         });
       } catch (err) {
@@ -1307,7 +1310,7 @@ export function App() {
         setIsExtracting(false);
       }
     },
-    [media, activeTab.outputDir, duration]
+    [media, activeTab.outputDir, duration, t]
   );
 
   const handleExportBatchSubtitles = useCallback(async () => {
@@ -1320,7 +1323,7 @@ export function App() {
     const dir = await open({
       directory: true,
       multiple: false,
-      title: `选择批量导出 ${targets.length} 条字幕的目标文件夹`,
+      title: t('dlg.exportBatchSubtitles', { n: targets.length }),
       defaultPath: activeTab.outputDir || getDirName(media.file_path) || undefined,
     });
     if (typeof dir !== 'string') return;
@@ -1329,10 +1332,10 @@ export function App() {
     const items = targets.map((s) => {
       const idx = s.subtitle_index!;
       const ext = subtitleExtForCodec(s.codec_name);
-      const label = sanitizeFilePart(s.title || `字幕${idx + 1}`);
+      const label = sanitizeFilePart(s.title || `sub${idx + 1}`);
       return {
         subtitle_index: idx,
-        output_path: joinPath(dir, `${base}_字幕${idx + 1}_${label}.${ext}`),
+        output_path: joinPath(dir, `${base}_sub${idx + 1}_${label}.${ext}`),
         codec_name: s.codec_name,
       };
     });
@@ -1343,9 +1346,9 @@ export function App() {
       percent: 35,
       out_time_sec: 0,
       expected_duration_sec: duration,
-      speed: `批量 ${items.length} 条`,
+      speed: t('msg.batchCount', { n: items.length }),
       written_bytes: 0,
-      message: `正在批量导出 ${items.length} 条字幕...`,
+      message: t('msg.exportingBatchSub', { n: items.length }),
       output_path: items[0].output_path,
     });
 
@@ -1361,7 +1364,7 @@ export function App() {
         expected_duration_sec: duration,
         speed: '',
         written_bytes: 0,
-        message: `已批量导出 ${outs.length} 条字幕！`,
+        message: t('msg.exportedBatchSub', { n: outs.length }),
         output_path: outs[0] || dir,
       });
     } catch (err) {
@@ -1378,7 +1381,7 @@ export function App() {
     } finally {
       setIsExtracting(false);
     }
-  }, [media, activeTab.subtitleTracks, activeTab.outputDir, duration]);
+  }, [media, activeTab.subtitleTracks, activeTab.outputDir, duration, t]);
 
   // Global Keyboard Shortcuts (including fallback Ctrl/Cmd+W, T, 1..9 & Ctrl+Tab for Windows/WebView)
   useEffect(() => {
@@ -1491,7 +1494,7 @@ export function App() {
     const defaultPath = baseDir ? joinPath(baseDir, defaultName) : defaultName;
 
     const chosen = await save({
-      title: `请输入导出文件名 (.${fmt})`,
+      title: t('dlg.exportVideoTitle', { fmt }),
       defaultPath,
       filters:
         fmt === 'mp4'
@@ -1685,7 +1688,7 @@ export function App() {
           <VideoViewport
             media={media}
             isNativeReady={isNativeReady}
-            hideNativeView={showDetails}
+            hideNativeView={showDetails || needsLanguageSetup}
             errorMsg={activeTab.playerError}
             onImportVideo={handleImportVideo}
             onTogglePause={handleTogglePause}
@@ -1728,7 +1731,7 @@ export function App() {
               }`}
             >
               <Scissors className="w-3.5 h-3.5 text-rose-400" />
-              <span>剪辑</span>
+              <span>{t('panel.cut')}</span>
               {activeTab.ranges.length > 0 && (
                 <span className="px-1.5 rounded-full bg-rose-500/25 text-rose-300 text-[10px] font-mono-num">
                   {activeTab.ranges.length}
@@ -1745,7 +1748,7 @@ export function App() {
               }`}
             >
               <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
-              <span>音轨</span>
+              <span>{t('panel.audio')}</span>
               {activeTab.audioTracks.length + activeTab.mixedTracks.length > 0 && (
                 <span className="px-1.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono-num">
                   {activeTab.audioTracks.length + activeTab.mixedTracks.length}
@@ -1762,7 +1765,7 @@ export function App() {
               }`}
             >
               <Subtitles className="w-3.5 h-3.5 text-sky-400" />
-              <span>字幕</span>
+              <span>{t('panel.subtitle')}</span>
               {activeTab.subtitleTracks.length > 0 && (
                 <span className="px-1.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-mono-num">
                   {activeTab.subtitleTracks.length}
@@ -1880,6 +1883,9 @@ export function App() {
 
       {/* PotPlayer-style Media Details Modal (native video view auto-hidden while open) */}
       <MediaDetailsModal media={media} open={showDetails} onClose={() => setShowDetails(false)} />
+
+      {/* First-Launch Language Selection Modal (English / 简体中文) */}
+      <LanguageModal open={needsLanguageSetup} />
     </div>
   );
 }

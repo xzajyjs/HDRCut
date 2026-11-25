@@ -12,7 +12,7 @@
 
 [![Release](https://img.shields.io/github/v/release/xzajyjs/HDRCut?label=release&color=06b6d4)](https://github.com/xzajyjs/HDRCut/releases)
 [![License](https://img.shields.io/github/license/xzajyjs/HDRCut?color=06b6d4)](LICENSE)
-[![Build & Release](https://img.shields.io/github/actions/workflow/status/xzajyjs/HDRCut/build-release.yml?branch=main&label=build)](https://github.com/xzajyjs/HDRCut/actions/workflows/build-release.yml)
+[![Build & Test](https://img.shields.io/github/actions/workflow/status/xzajyjs/HDRCut/ci.yml?branch=main&label=CI)](https://github.com/xzajyjs/HDRCut/actions/workflows/ci.yml)
 [![Platform](https://img.shields.io/badge/platform-macOS%20arm64%20%7C%20Windows%20x64-0ea5e9)](https://github.com/xzajyjs/HDRCut/releases)
 [![Tauri v2](https://img.shields.io/badge/Tauri-v2-10b981)](https://v2.tauri.app/)
 
