@@ -4,11 +4,11 @@
 
 # HDRCut
 
-**每一比特都不妥协的无损 SDR / HDR 视频剪辑工作站。**
+**轻量、流畅、极速的无损 SDR / HDR 视频剪辑工作站。**
 
-同时支持常规 **SDR** 与 100GB+ 4K **HDR** 视频的跨平台桌面端剪辑与音轨/字幕工具。基于 Tauri v2、
-Rust、原生内嵌 `libmpv` 硬解引擎与 `FFmpeg` 构建，支持真 HDR / SDR 流畅预览、智能帧精确剪辑
-（Smart Cut）、多音轨无损混音、多字幕管理偏移与多标签页独立工作区。
+告别笨重与漫长转码 —— 同时支持日常 **SDR** 与 100GB+ 4K **HDR** 视频的原生跨平台桌面端工具。
+基于 Rust + Tauri v2、原生内嵌 `libmpv` 硬解引擎与 `FFmpeg` 构建，秒开流畅预览、极速智能帧精确剪辑
+（Smart Cut）、多音轨无损混音、多字幕管理偏移、中英文双语、多标签页独立工作区与应用内全自动更新一步到位。
 
 [![Release](https://img.shields.io/github/v/release/xzajyjs/HDRCut?label=release&color=06b6d4)](https://github.com/xzajyjs/HDRCut/releases)
 [![License](https://img.shields.io/github/license/xzajyjs/HDRCut?color=06b6d4)](LICENSE)
@@ -24,20 +24,20 @@ Rust、原生内嵌 `libmpv` 硬解引擎与 `FFmpeg` 构建，支持真 HDR / S
 
 ---
 
-HDRCut 同时面向日常 **SDR** 视频与超大容量 **4K HDR（HDR10 / HLG / Dolby Vision）** 视频
-（MKV / MP4 / MOV）而设计。无需全片重编码，也不用忍受 10 秒关键帧间隔带来的剪辑误差：秒级索引
-百 GB 视频关键帧、原生硬解直出准确 SDR / HDR 画面，并通过单遍流拷贝直接导出帧精确成片。
+HDRCut 是一款主打 **轻量、流畅、极速** 的桌面端视频无损剪辑与音轨/字幕工作站，同时面向日常
+**SDR** 片段与超大容量 **4K HDR（HDR10 / HLG / Dolby Vision）** 视频（MKV / MP4 / MOV）。
+采用原生 Rust + Tauri v2 架构、无 Electron 臃肿开销，百 GB 大文件秒级索引、60fps 丝滑硬解拖动，
+单遍流拷贝接近磁盘读写极限速度极速成片。
 
-- **SDR / HDR 全格式原生硬解预览**：同时完美支持常规 8-bit SDR 与 10-bit HDR10 / HLG /
+- **极致轻量，启动秒开**：原生 Rust 核心 + 系统 WebView + Canvas 2D 硬件时间轴，内存占用低、体积轻巧，多标签页同时处理多部 4K 视频依然轻盈。
+- **丝滑流畅的 SDR / HDR 原生硬解预览**：同时完美支持常规 8-bit SDR 与 10-bit HDR10 / HLG /
   Dolby Vision —— macOS Apple Silicon 采用内嵌 `libmpv` + 64-bit float `CAOpenGLLayer`
-  EDR 直通渲染；Windows x64 采用原生子窗口 `HWND` + D3D11 `gpu-next` 硬件加速，大文件秒开不卡顿。
-- **Smart Cut 智能帧精确剪辑与零重编码导出**：支持任意帧精确切点，仅对非关键帧切点处
-  1 个极短边界 GOP 匹配原片编码与 HDR 元数据局部重编码，其余 99%+ 画面保持 `-c:v copy`
-  单遍直出；也可一键切换「仅关键帧 · 0 重编码」模式。
+  EDR 直通渲染；Windows x64 采用原生子窗口 `HWND` + D3D11 `gpu-next` 硬件加速，无需生成代理，拖动秒出画面。
+- **极速 Smart Cut 与绝对零重编码直出**：支持任意帧精确切点，仅对非关键帧切点处 1 个极短边界 GOP
+  局部匹配编码，其余 99%+ 画面以 `-c:v copy` 磁盘级极速单遍直出；也可一键切换「仅关键帧 · 0 重编码」模式。
 - **Final Cut Pro 风格时间轴浏览预览（Skimming）**：一键开启（快捷键 `S`），鼠标划过时间轴即以橙色浏览线实时预览对应画面，同时保持青色主播放头不动；支持批量文本导入时间段与 `时:分:秒:帧` 分段跳转。
-- **全功能音轨与字幕工作站**：支持音轨实时切换试听、UTF-8 中文重命名、多轨无损 **FLAC** /
-  PCM / ALAC / AAC 混音、单条/批量无损提取、外部音轨/字幕导入，以及外挂字幕前后时间偏移（预览与导出实时同步）。
-- **多标签页独立工作区**：支持同时打开多个视频标签页（`⌘T` / `⌘W` / `⌘1`–`⌘9`），每个标签页的剪辑区间、音轨混音、字幕偏移、播放进度与导出配置完全隔离。
+- **全功能音轨与字幕工作站**：支持实时切换试听、UTF-8 中文重命名、单个/批量删除与无损提取、多轨无损 **FLAC** / PCM / ALAC / AAC 混音、外挂音轨/字幕导入（完整保留名称与语言代码）以及外挂字幕时间偏移同步。
+- **多标签页、中英双语与应用内自动更新**：独立标签页工作区（`⌘T` / `⌘W` / `⌘1`–`⌘9`）、首次启动及顶栏一键切换中英文、内置 GitHub 全自动更新。
 
 ---
 

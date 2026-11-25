@@ -4,11 +4,12 @@
 
 # HDRCut
 
-**Lossless SDR & HDR video cutting that keeps every bit.**
+**Lightweight, ultra-smooth, blazing-fast lossless SDR & HDR video cutter.**
 
-Cross-platform desktop workstation for standard **SDR** and 100GB+ 4K **HDR** videos. Native
-`libmpv` hardware-decoded preview, frame-accurate Smart Cut, multi-track lossless audio mixing,
-subtitle workstation, and isolated multi-tab editing — built with Tauri v2, Rust, and FFmpeg.
+A sleek, native desktop workstation for standard **SDR** and 100GB+ 4K **HDR** videos. Instant
+launch, buttery-smooth `libmpv` hardware-decoded preview, blazing-fast frame-accurate Smart Cut,
+multi-track lossless audio mixing, subtitle workstation, bilingual UI, in-app auto-updates, and
+isolated multi-tab editing — built with Tauri v2, Rust, and FFmpeg.
 
 [![Release](https://img.shields.io/github/v/release/xzajyjs/HDRCut?label=release&color=06b6d4)](https://github.com/xzajyjs/HDRCut/releases)
 [![License](https://img.shields.io/github/license/xzajyjs/HDRCut?color=06b6d4)](LICENSE)
@@ -24,29 +25,33 @@ subtitle workstation, and isolated multi-tab editing — built with Tauri v2, Ru
 
 ---
 
-HDRCut is a desktop video cutter and track workstation engineered for both everyday **SDR**
-clips and massive **4K HDR (HDR10 / HLG / Dolby Vision)** recordings (MKV / MP4 / MOV). Instead
-of forcing full re-encoding or losing sync on 10-second keyframe intervals, HDRCut indexes
-100GB+ files in seconds, renders true SDR & HDR directly via embedded `libmpv`, and exports
-frame-accurate cuts in a single streaming pass.
+HDRCut is a **lightweight, ultra-smooth, blazing-fast** desktop video cutter and track
+workstation engineered for both everyday **SDR** clips and massive **4K HDR (HDR10 / HLG / Dolby
+Vision)** recordings (MKV / MP4 / MOV). Built natively on Rust + Tauri v2 with zero Electron
+bloat, HDRCut opens 100GB+ files in seconds, scrubs at 60fps via hardware-accelerated `libmpv`,
+and exports frame-accurate lossless cuts in a single streaming pass.
 
-- **Full SDR & HDR hardware preview.** Works seamlessly with standard 8-bit SDR as well as
-  10-bit HDR10 / HLG / Dolby Vision — embedded `libmpv` with 64-bit float `CAOpenGLLayer` EDR
-  passthrough on macOS Apple Silicon and native `HWND` / D3D11 `gpu-next` on Windows x64, with
-  zero proxy generation required.
-- **Smart Cut & zero-reencode lossless export.** Cut at any frame: only the tiny boundary GOP
+- **Lightweight & instant — zero Electron bloat.** Native Rust backend + system WebView + Canvas
+  2D timeline: tiny footprint, low memory usage, and instant startup even with multi-tab 4K
+  projects.
+- **Ultra-smooth SDR & HDR hardware preview.** Seamless 60fps scrubbing for both standard 8-bit
+  SDR and 10-bit HDR10 / HLG / Dolby Vision — embedded `libmpv` with 64-bit float `CAOpenGLLayer`
+  EDR passthrough on macOS Apple Silicon and native `HWND` / D3D11 `gpu-next` on Windows x64,
+  with zero proxy generation.
+- **Blazing-fast Smart Cut & zero-reencode export.** Cut at any frame: only the tiny boundary GOP
   (a few seconds) at non-keyframe cut points is locally re-encoded to match source codec/HDR
-  metadata, while 99%+ of the video streams directly with `-c:v copy`. Or toggle pure
-  **Keyframe-Only** mode for 100% zero re-encoding.
+  metadata, while 99%+ of the video streams directly with `-c:v copy` at disk speed. Or toggle
+  pure **Keyframe-Only** mode for 100% zero re-encoding.
 - **Final Cut Pro–style timeline skimming.** Toggle live hover skimming (`S`) to preview frames
   under your cursor with an orange skimmer line while keeping the main playhead anchored, plus
   batch time-range import and `HH:MM:SS:FF` segmented jump input.
-- **Complete audio & subtitle workstation.** Live track auditioning, UTF-8 renaming, multi-track
-  lossless **FLAC** / PCM / ALAC / AAC mixing, single/batch track extraction, external audio &
-  subtitle import, and live + exported subtitle time-offset adjustment.
-- **Isolated multi-tab workspace.** Open multiple videos side-by-side in independent tabs
-  (`⌘T` / `⌘W` / `⌘1`–`⌘9`), each preserving its own cut ranges, tracks, subtitle offsets,
-  playback position, and export settings.
+- **Complete audio & subtitle workstation.** Live track auditioning, UTF-8 renaming, single/batch
+  track export & delete, multi-track lossless **FLAC** / PCM / ALAC / AAC mixing, external
+  audio/subtitle import with preserved titles & language codes, and live + exported subtitle
+  offset adjustment.
+- **Isolated multi-tab workspace, EN/ZH UI & auto-updates.** Open multiple videos in independent
+  tabs (`⌘T` / `⌘W` / `⌘1`–`⌘9`), switch between English & 简体中文 anytime, and stay up to date
+  automatically via built-in GitHub self-updates.
 
 ---
 
