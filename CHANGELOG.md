@@ -7,6 +7,28 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.6.7] - 2026-11-25
+
+### English
+- **Subtitle Batch Offset UI Polish**:
+  - The numeric input in the **Batch Offset** bar now stays live-synced with the checked subtitles' shared offset whenever using `-0.5` / `-0.1` / `+0.1` / `+0.5`, Reset All, or Undo/Redo.
+  - Fixed a 5px vertical height jump in the Batch Offset box when the **Reset All** button appears or disappears by locking the header row height.
+- **Prevent Spacebar Hold Auto-Repeat Loop**:
+  - Holding down the `Space` key now toggles Play/Pause once on initial key press and ignores repeat events until released (same for `I` / `O` / `S`).
+- **High-Contrast Blue Volume Slider**:
+  - Upgraded the playback volume slider with a clear blue progress fill to the left of the thumb, higher-contrast track background on the right, and a crisp glowing thumb indicator.
+
+### 中文
+- **字幕批量偏移细节优化**：
+  - 使用 `-0.5` / `-0.1` / `+0.1` / `+0.5`、全部归零或撤销/重做修改批量偏移量时，右侧数值输入框现已实时同步展示当前统一偏移值。
+  - 固定「批量偏移」标题行高度，修复「全部归零」按钮出现/隐藏时外框高度轻微跳动的问题。
+- **修复长按空格键无限循环切换播放/暂停**：
+  - 空格键（以及 `I` / `O` / `S` 单次触发键）按下后仅触发一次，松开前忽略系统连发事件，不再循环抖动。
+- **音量滑块高对比度蓝色进度条**：
+  - 优化音量条视觉样式，滑块左侧显示醒目蓝色填充条、右侧提高轨道对比度，不再与暗色背景融为一体。
+
+---
+
 ## [1.6.6] - 2026-11-25
 
 ### English

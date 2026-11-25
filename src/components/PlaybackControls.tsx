@@ -457,16 +457,37 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           >
             {muted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5" />}
           </button>
-          <input
-            type="range"
-            min={0}
-            max={130}
-            step={1}
-            disabled={disabled}
-            value={Math.round(playerState.volume)}
-            onChange={(e) => onSetVolume(Number(e.target.value))}
-            className="w-16 accent-cyan-400 cursor-pointer"
-          />
+          <div
+            className={`relative w-[76px] h-5 flex items-center select-none ${
+              disabled ? 'opacity-35' : ''
+            }`}
+            title={`${Math.round(playerState.volume)}%`}
+          >
+            <div className="w-full h-1.5 rounded-full bg-white/[0.22] overflow-hidden pointer-events-none">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-sky-500 to-cyan-400"
+                style={{
+                  width: `${Math.max(0, Math.min(100, (playerState.volume / 130) * 100))}%`,
+                }}
+              />
+            </div>
+            <div
+              className="w-3 h-3 rounded-full bg-white shadow-md shadow-black/60 ring-2 ring-cyan-400/70 pointer-events-none absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
+              style={{
+                left: `${Math.max(0, Math.min(100, (playerState.volume / 130) * 100))}%`,
+              }}
+            />
+            <input
+              type="range"
+              min={0}
+              max={130}
+              step={1}
+              disabled={disabled}
+              value={Math.round(playerState.volume)}
+              onChange={(e) => onSetVolume(Number(e.target.value))}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+            />
+          </div>
         </div>
       </div>
     </div>

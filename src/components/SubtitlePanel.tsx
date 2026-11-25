@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Subtitles,
   Eye,
@@ -54,6 +54,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
 }) => {
   const { t } = useI18n();
   const [batchDelayText, setBatchDelayText] = useState('0');
+  const [isEditingBatchInput, setIsEditingBatchInput] = useState(false);
   const internalEnabledCount = subtitles.filter(
     (s) => s.enabled && s.source_kind === 'internal'
   ).length;
@@ -62,11 +63,29 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   const allChecked = subtitles.length > 0 && totalEnabled === subtitles.length;
   const anyCheckedHasDelay = checkedSubs.some((s) => Math.abs(s.delay_sec) > 0.001);
 
+  // Compute shared offset across all checked subtitles so the batch input stays in sync
+  const commonCheckedDelay =
+    checkedSubs.length > 0 &&
+    checkedSubs.every((s) => Math.abs((s.delay_sec || 0) - (checkedSubs[0].delay_sec || 0)) < 0.001)
+      ? Math.round((checkedSubs[0].delay_sec || 0) * 100) / 100
+      : null;
+
+  useEffect(() => {
+    if (isEditingBatchInput) return;
+    if (commonCheckedDelay !== null) {
+      setBatchDelayText(String(commonCheckedDelay));
+    } else if (totalEnabled > 0) {
+      setBatchDelayText('');
+    }
+  }, [commonCheckedDelay, totalEnabled, isEditingBatchInput]);
+
   const applyBatchInput = () => {
     if (totalEnabled === 0) return;
     const v = parseFloat(batchDelayText);
     if (!Number.isFinite(v)) return;
-    onBatchSetSubtitlesDelay(Math.round(v * 100) / 100);
+    const rounded = Math.round(v * 100) / 100;
+    setBatchDelayText(String(rounded));
+    onBatchSetSubtitlesDelay(rounded);
   };
 
   return (
@@ -136,9 +155,9 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
         {/* Batch Subtitle Offset Toolbar (applies to all checked subtitles in 1 click) */}
         {subtitles.length > 0 && (
           <div className="p-2 rounded-lg bg-sky-500/[0.06] border border-sky-500/20 space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 h-5">
               <div
-                className="flex items-center gap-1.5 text-[10px] font-medium text-sky-200"
+                className="flex items-center gap-1.5 text-[10px] font-medium text-sky-200 leading-none"
                 title={t('sub.batchOffsetTitle')}
               >
                 <Clock className="w-3 h-3 text-sky-400 shrink-0" />
@@ -152,7 +171,7 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                     setBatchDelayText('0');
                     onBatchSetSubtitlesDelay(0);
                   }}
-                  className="h-5 px-1.5 rounded bg-white/[0.07] hover:bg-rose-500/20 text-[10px] text-zinc-300 hover:text-rose-200 flex items-center gap-1 cursor-pointer disabled:opacity-35"
+                  className="h-5 px-1.5 rounded bg-white/[0.07] hover:bg-rose-500/20 text-[10px] text-zinc-300 hover:text-rose-200 flex items-center gap-1 cursor-pointer disabled:opacity-35 shrink-0"
                   title={t('sub.batchOffsetResetTitle')}
                 >
                   <RotateCcw className="w-2.5 h-2.5" />
@@ -204,15 +223,19 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                   type="number"
                   step="0.1"
                   value={batchDelayText}
+                  placeholder="—"
+                  onFocus={() => setIsEditingBatchInput(true)}
+                  onBlur={() => setIsEditingBatchInput(false)}
                   onChange={(e) => setBatchDelayText(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       applyBatchInput();
+                      e.currentTarget.blur();
                     }
                   }}
                   disabled={totalEnabled === 0 || isBusy}
-                  className="w-full min-w-[46px] h-6 px-1.5 rounded bg-black/50 border border-white/[0.1] focus:border-sky-400/60 text-[11px] font-mono-num text-center text-sky-200 outline-none disabled:opacity-35"
+                  className="w-full min-w-[46px] h-6 px-1.5 rounded bg-black/50 border border-white/[0.1] focus:border-sky-400/60 text-[11px] font-mono-num text-center text-sky-200 placeholder:text-zinc-500 outline-none disabled:opacity-35"
                   title={t('sub.offsetInputTitle')}
                 />
                 <button

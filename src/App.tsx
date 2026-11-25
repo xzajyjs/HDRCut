@@ -134,7 +134,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.6.6';
+const APP_VERSION = '1.6.7';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 const MAX_HISTORY_STEPS = 80;
 
@@ -2575,7 +2575,18 @@ export function App() {
   }, [media, activeTab.subtitleTracks, activeTab.outputDir, duration, t]);
 
   // Global Keyboard Shortcuts (including fallback Ctrl/Cmd+Z, Y, S, O, W, T, 1..9 & Ctrl+Tab)
+  const spaceHeldRef = useRef(false);
+
   useEffect(() => {
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        spaceHeldRef.current = false;
+      }
+    };
+    const onWindowBlur = () => {
+      spaceHeldRef.current = false;
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       const keyLower = e.key.toLowerCase();
@@ -2670,7 +2681,10 @@ export function App() {
 
       if (e.code === 'Space') {
         e.preventDefault();
-        handleTogglePause();
+        if (!e.repeat && !spaceHeldRef.current) {
+          spaceHeldRef.current = true;
+          handleTogglePause();
+        }
       } else if (e.key === 'ArrowLeft' && e.shiftKey) {
         e.preventDefault();
         handleStepKeyframe('prev');
@@ -2691,18 +2705,24 @@ export function App() {
         handleStepFrame(true);
       } else if (keyLower === 'i') {
         e.preventDefault();
-        handleMarkIn();
+        if (!e.repeat) handleMarkIn();
       } else if (keyLower === 'o') {
         e.preventDefault();
-        handleMarkOut();
+        if (!e.repeat) handleMarkOut();
       } else if (keyLower === 's' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
-        handleToggleSkimming();
+        if (!e.repeat) handleToggleSkimming();
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onWindowBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onWindowBlur);
+    };
   }, [
     media,
     showDetails,
