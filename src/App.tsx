@@ -125,7 +125,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 
 function loadAutoUpdatePref(): boolean {
@@ -1057,15 +1057,61 @@ export function App() {
     [updateActiveTab]
   );
 
-  const handleRemoveExternalAudio = useCallback(
-    (id: string) => {
+  const handleToggleAllAudioTracks = useCallback(
+    (enabled: boolean) => {
       updateActiveTab((prev) => ({
         ...prev,
-        audioTracks: prev.audioTracks.filter((t) => t.id !== id),
+        audioTracks: prev.audioTracks.map((tr) => ({ ...tr, enabled })),
       }));
     },
     [updateActiveTab]
   );
+
+  const handleDeleteAudioTrack = useCallback(
+    (id: string) => {
+      const target = activeTab.audioTracks.find((tr) => tr.id === id);
+      const remaining = activeTab.audioTracks.filter((tr) => tr.id !== id);
+      const removedInternalIdx =
+        target && target.source_kind === 'internal' ? target.audio_index : null;
+      updateActiveTab((prev) => ({
+        ...prev,
+        audioTracks: prev.audioTracks.filter((tr) => tr.id !== id),
+        mixedTracks:
+          removedInternalIdx === null
+            ? prev.mixedTracks
+            : prev.mixedTracks.filter(
+                (m) => !m.source_audio_indices.includes(removedInternalIdx)
+              ),
+      }));
+      if (target && target.mpv_aid === playerState.aid && remaining.length > 0) {
+        handleSelectPreviewAudio(remaining[0].mpv_aid);
+      }
+    },
+    [activeTab.audioTracks, playerState.aid, updateActiveTab, handleSelectPreviewAudio]
+  );
+
+  const handleDeleteCheckedAudioTracks = useCallback(() => {
+    const toRemove = activeTab.audioTracks.filter((tr) => tr.enabled);
+    if (toRemove.length === 0) return;
+    const removedIds = new Set(toRemove.map((tr) => tr.id));
+    const removedInternalIndices = new Set(
+      toRemove.filter((tr) => tr.source_kind === 'internal').map((tr) => tr.audio_index)
+    );
+    const remaining = activeTab.audioTracks.filter((tr) => !removedIds.has(tr.id));
+    updateActiveTab((prev) => ({
+      ...prev,
+      audioTracks: prev.audioTracks.filter((tr) => !removedIds.has(tr.id)),
+      mixedTracks:
+        removedInternalIndices.size === 0
+          ? prev.mixedTracks
+          : prev.mixedTracks.filter(
+              (m) => !m.source_audio_indices.some((idx) => removedInternalIndices.has(idx))
+            ),
+    }));
+    if (toRemove.some((tr) => tr.mpv_aid === playerState.aid) && remaining.length > 0) {
+      handleSelectPreviewAudio(remaining[0].mpv_aid);
+    }
+  }, [activeTab.audioTracks, playerState.aid, updateActiveTab, handleSelectPreviewAudio]);
 
   const handleSetDefaultAudioTrack = useCallback(
     (kind: 'original' | 'mixed', id: string) => {
@@ -1312,7 +1358,17 @@ export function App() {
     [updateActiveTab]
   );
 
-  const handleRemoveExternalSubtitle = useCallback(
+  const handleToggleAllSubtitles = useCallback(
+    (enabled: boolean) => {
+      updateActiveTab((prev) => ({
+        ...prev,
+        subtitleTracks: prev.subtitleTracks.map((s) => ({ ...s, enabled })),
+      }));
+    },
+    [updateActiveTab]
+  );
+
+  const handleDeleteSubtitle = useCallback(
     (id: string) => {
       const target = activeTab.subtitleTracks.find((s) => s.id === id);
       updateActiveTab((prev) => ({
@@ -1325,6 +1381,19 @@ export function App() {
     },
     [activeTab.subtitleTracks, playerState.sid, updateActiveTab, handleSelectPreviewSubtitle]
   );
+
+  const handleDeleteCheckedSubtitles = useCallback(() => {
+    const toRemove = activeTab.subtitleTracks.filter((s) => s.enabled);
+    if (toRemove.length === 0) return;
+    const removedIds = new Set(toRemove.map((s) => s.id));
+    updateActiveTab((prev) => ({
+      ...prev,
+      subtitleTracks: prev.subtitleTracks.filter((s) => !removedIds.has(s.id)),
+    }));
+    if (toRemove.some((s) => s.mpv_sid === playerState.sid)) {
+      handleSelectPreviewSubtitle(0);
+    }
+  }, [activeTab.subtitleTracks, playerState.sid, updateActiveTab, handleSelectPreviewSubtitle]);
 
   const handleImportSubtitle = useCallback(async () => {
     if (!media) return;
@@ -1975,8 +2044,10 @@ export function App() {
                 isBusy={isExporting}
                 onPreviewTrack={handleSelectPreviewAudio}
                 onUpdateTrack={handleUpdateAudioTrack}
+                onToggleAllTracks={handleToggleAllAudioTracks}
                 onMoveTrack={handleMoveAudioTrack}
-                onRemoveExternalTrack={handleRemoveExternalAudio}
+                onDeleteTrack={handleDeleteAudioTrack}
+                onDeleteCheckedTracks={handleDeleteCheckedAudioTracks}
                 onSetDefaultTrack={handleSetDefaultAudioTrack}
                 onImportAudioTrack={handleImportAudioTrack}
                 onExportSingleAudio={handleExportSingleAudio}
@@ -2010,9 +2081,11 @@ export function App() {
                 isBusy={isExporting}
                 onPreviewSubtitle={handleSelectPreviewSubtitle}
                 onUpdateSubtitle={handleUpdateSubtitle}
+                onToggleAllSubtitles={handleToggleAllSubtitles}
                 onSetSubtitleDelay={handleSetSubtitleDelay}
                 onSetDefaultSubtitle={handleSetDefaultSubtitle}
-                onRemoveExternalSubtitle={handleRemoveExternalSubtitle}
+                onDeleteSubtitle={handleDeleteSubtitle}
+                onDeleteCheckedSubtitles={handleDeleteCheckedSubtitles}
                 onImportSubtitle={handleImportSubtitle}
                 onExportSingleSubtitle={handleExportSingleSubtitle}
                 onExportBatchSubtitles={handleExportBatchSubtitles}

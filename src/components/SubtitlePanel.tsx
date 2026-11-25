@@ -21,9 +21,11 @@ interface SubtitlePanelProps {
   isBusy: boolean;
   onPreviewSubtitle: (mpvSid: number) => void;
   onUpdateSubtitle: (id: string, patch: Partial<EditableSubtitleTrack>) => void;
+  onToggleAllSubtitles: (enabled: boolean) => void;
   onSetSubtitleDelay: (id: string, delaySec: number) => void;
   onSetDefaultSubtitle: (id: string) => void;
-  onRemoveExternalSubtitle: (id: string) => void;
+  onDeleteSubtitle: (id: string) => void;
+  onDeleteCheckedSubtitles: () => void;
   onImportSubtitle: () => void;
   onExportSingleSubtitle: (sub: EditableSubtitleTrack) => void;
   onExportBatchSubtitles: () => void;
@@ -36,9 +38,11 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
   isBusy,
   onPreviewSubtitle,
   onUpdateSubtitle,
+  onToggleAllSubtitles,
   onSetSubtitleDelay,
   onSetDefaultSubtitle,
-  onRemoveExternalSubtitle,
+  onDeleteSubtitle,
+  onDeleteCheckedSubtitles,
   onImportSubtitle,
   onExportSingleSubtitle,
   onExportBatchSubtitles,
@@ -48,15 +52,29 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
     (s) => s.enabled && s.source_kind === 'internal'
   ).length;
   const totalEnabled = subtitles.filter((s) => s.enabled).length;
+  const allChecked = subtitles.length > 0 && totalEnabled === subtitles.length;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header actions */}
       <div className="p-3 border-b border-white/[0.06] space-y-2 shrink-0">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs font-semibold text-zinc-100">
-            {t('sub.header', { enabled: totalEnabled, total: subtitles.length })}
-          </div>
+          <label
+            className="flex items-center gap-2 cursor-pointer"
+            title={t('sub.toggleAllTitle')}
+          >
+            {subtitles.length > 0 && (
+              <input
+                type="checkbox"
+                checked={allChecked}
+                onChange={(e) => onToggleAllSubtitles(e.target.checked)}
+                className="w-3.5 h-3.5 accent-emerald-400 rounded cursor-pointer"
+              />
+            )}
+            <span className="text-xs font-semibold text-zinc-100">
+              {t('sub.header', { enabled: totalEnabled, total: subtitles.length })}
+            </span>
+          </label>
           {activePreviewSid > 0 && hasMedia && (
             <button
               onClick={() => onPreviewSubtitle(0)}
@@ -73,20 +91,30 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
           <button
             disabled={!hasMedia || isBusy}
             onClick={onImportSubtitle}
-            className="flex-1 h-7 px-2.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 disabled:opacity-40 text-[11px] font-medium text-cyan-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+            className="flex-1 h-7 px-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 disabled:opacity-40 text-[11px] font-medium text-cyan-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
           >
-            <FilePlus2 className="w-3.5 h-3.5" />
-            <span>{t('sub.importBtn')}</span>
+            <FilePlus2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{t('sub.importBtn')}</span>
           </button>
 
           <button
             disabled={!hasMedia || internalEnabledCount === 0 || isBusy}
             onClick={onExportBatchSubtitles}
-            className="flex-1 h-7 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] disabled:opacity-35 text-[11px] font-medium text-zinc-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+            className="flex-1 h-7 px-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] disabled:opacity-35 text-[11px] font-medium text-zinc-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
             title={t('sub.batchExportTitle')}
           >
-            <FolderDown className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{t('sub.batchExportBtn', { n: internalEnabledCount })}</span>
+            <FolderDown className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate">{t('sub.batchExportBtn', { n: internalEnabledCount })}</span>
+          </button>
+
+          <button
+            disabled={!hasMedia || totalEnabled === 0 || isBusy}
+            onClick={onDeleteCheckedSubtitles}
+            className="h-7 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/25 hover:border-rose-500/45 disabled:opacity-35 text-[11px] font-medium text-rose-300 flex items-center justify-center gap-1 transition-colors cursor-pointer shrink-0"
+            title={t('sub.batchDeleteTitle')}
+          >
+            <Trash2 className="w-3.5 h-3.5 shrink-0" />
+            <span>{t('sub.batchDeleteBtn', { n: totalEnabled })}</span>
           </button>
         </div>
       </div>
@@ -172,15 +200,14 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({
                       <Star className={`w-3.5 h-3.5 ${sub.is_default ? 'fill-amber-400' : ''}`} />
                     </button>
 
-                    {isExternal && (
-                      <button
-                        onClick={() => onRemoveExternalSubtitle(sub.id)}
-                        className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer"
-                        title={t('sub.removeExternalTitle')}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      disabled={isBusy}
+                      onClick={() => onDeleteSubtitle(sub.id)}
+                      className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 disabled:opacity-35 cursor-pointer"
+                      title={t('sub.deleteSubTitle')}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
 

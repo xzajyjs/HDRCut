@@ -26,8 +26,10 @@ interface AudioTrackPanelProps {
   isBusy: boolean;
   onPreviewTrack: (mpvAid: number) => void;
   onUpdateTrack: (id: string, patch: Partial<EditableAudioTrack>) => void;
+  onToggleAllTracks: (enabled: boolean) => void;
   onMoveTrack: (index: number, direction: -1 | 1) => void;
-  onRemoveExternalTrack: (id: string) => void;
+  onDeleteTrack: (id: string) => void;
+  onDeleteCheckedTracks: () => void;
   onSetDefaultTrack: (kind: 'original' | 'mixed', id: string) => void;
   onImportAudioTrack: () => void;
   onExportSingleAudio: (track: EditableAudioTrack) => void;
@@ -45,8 +47,10 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
   isBusy,
   onPreviewTrack,
   onUpdateTrack,
+  onToggleAllTracks,
   onMoveTrack,
-  onRemoveExternalTrack,
+  onDeleteTrack,
+  onDeleteCheckedTracks,
   onSetDefaultTrack,
   onImportAudioTrack,
   onExportSingleAudio,
@@ -107,15 +111,29 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
 
   const enabledOriginalCount = tracks.filter((tr) => tr.enabled).length;
   const enabledMixedCount = mixedTracks.filter((m) => m.enabled).length;
+  const allTracksChecked = tracks.length > 0 && enabledOriginalCount === tracks.length;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header actions */}
       <div className="p-3 border-b border-white/[0.06] space-y-2 shrink-0">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs font-semibold text-zinc-100">
-            {t('audio.header', { orig: enabledOriginalCount, mix: enabledMixedCount })}
-          </div>
+          <label
+            className="flex items-center gap-2 cursor-pointer"
+            title={t('audio.toggleAllTitle')}
+          >
+            {tracks.length > 0 && (
+              <input
+                type="checkbox"
+                checked={allTracksChecked}
+                onChange={(e) => onToggleAllTracks(e.target.checked)}
+                className="w-3.5 h-3.5 accent-emerald-400 rounded cursor-pointer"
+              />
+            )}
+            <span className="text-xs font-semibold text-zinc-100">
+              {t('audio.header', { orig: enabledOriginalCount, mix: enabledMixedCount })}
+            </span>
+          </label>
           {internalTracks.length >= 2 && (
             <button
               onClick={openMixBuilder}
@@ -131,21 +149,31 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
           <button
             disabled={!hasMedia || isBusy}
             onClick={onImportAudioTrack}
-            className="flex-1 h-7 px-2.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 disabled:opacity-40 text-[11px] font-medium text-cyan-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+            className="flex-1 h-7 px-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 disabled:opacity-40 text-[11px] font-medium text-cyan-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
             title={t('audio.importTitle')}
           >
-            <FilePlus2 className="w-3.5 h-3.5" />
-            <span>{t('audio.importBtn')}</span>
+            <FilePlus2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{t('audio.importBtn')}</span>
           </button>
 
           <button
             disabled={!hasMedia || enabledInternalCount === 0 || isBusy}
             onClick={onExportBatchAudio}
-            className="flex-1 h-7 px-2.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] disabled:opacity-35 text-[11px] font-medium text-zinc-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+            className="flex-1 h-7 px-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] disabled:opacity-35 text-[11px] font-medium text-zinc-200 flex items-center justify-center gap-1 transition-colors cursor-pointer"
             title={t('audio.batchExportTitle')}
           >
-            <FolderDown className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{t('audio.batchExportBtn', { n: enabledInternalCount })}</span>
+            <FolderDown className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="truncate">{t('audio.batchExportBtn', { n: enabledInternalCount })}</span>
+          </button>
+
+          <button
+            disabled={!hasMedia || enabledOriginalCount === 0 || isBusy}
+            onClick={onDeleteCheckedTracks}
+            className="h-7 px-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/25 hover:border-rose-500/45 disabled:opacity-35 text-[11px] font-medium text-rose-300 flex items-center justify-center gap-1 transition-colors cursor-pointer shrink-0"
+            title={t('audio.batchDeleteTitle')}
+          >
+            <Trash2 className="w-3.5 h-3.5 shrink-0" />
+            <span>{t('audio.batchDeleteBtn', { n: enabledOriginalCount })}</span>
           </button>
         </div>
       </div>
@@ -237,15 +265,16 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                           <Star className={`w-3.5 h-3.5 ${track.is_default ? 'fill-amber-400' : ''}`} />
                         </button>
 
-                        {isExternal ? (
-                          <button
-                            onClick={() => onRemoveExternalTrack(track.id)}
-                            className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer"
-                            title={t('audio.removeExternalTitle')}
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        ) : (
+                        <button
+                          disabled={isBusy}
+                          onClick={() => onDeleteTrack(track.id)}
+                          className="p-1 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 disabled:opacity-35 cursor-pointer"
+                          title={t('audio.deleteTrackTitle')}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {!isExternal && (
                           <>
                             <button
                               disabled={idx === 0}

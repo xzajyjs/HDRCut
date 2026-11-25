@@ -7,6 +7,20 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.5.1] - 2026-11-25
+
+### English
+- **Single & Batch Delete for Audio and Subtitle Tracks**:
+  - Added a dedicated delete icon button directly alongside the export and default-star buttons on every audio track and subtitle track (both embedded and external).
+  - Added a header select-all / deselect-all checkbox and a **Delete (N)** batch-delete button to both Audio and Subtitle panels for instant bulk removal.
+
+### 中文
+- **音轨与字幕支持单个/批量删除**：
+  - 所有内封与外挂音轨/字幕卡片的导出与设默认图标旁均新增单个删除图标，一键移除不需要的轨道。
+  - 音轨管理与字幕管理顶部栏新增全选/取消全选复选框与「批量删除 (N)」按钮，支持按勾选快速批量删除。
+
+---
+
 ## [1.5.0] - 2026-11-25
 
 ### English
