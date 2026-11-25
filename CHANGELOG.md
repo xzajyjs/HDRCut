@@ -7,6 +7,30 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.7.0] - 2026-11-25
+
+### English
+- **Advanced Video Export Mode (Default Lossless Export Preserved 100% Unchanged)**:
+  - Kept the default **Lossless Export (MKV / MP4)** button completely untouched while adding a dedicated **Advanced** export modal right alongside it for full custom video transcoding.
+  - **8 Mainstream Output Formats & Smart Codec Selection**: Supports `MP4`, `MKV`, `MOV`, `WebM`, `AVI`, `TS`, `FLV`, and `M4V`, with automatic container-compatible video codecs (`H.264`, `H.265/HEVC`, `AV1/SVT-AV1`, `VP9`, `Apple ProRes 422 HQ`, `MPEG-4`), encoding speed presets, and optional macOS Apple Silicon VideoToolbox GPU acceleration.
+  - **Aspect-Ratio-Locked Resolution Scaling**: One-click standard presets (`2160p` down to `360p`) and linked custom Width/Height inputs that strictly lock the source video's aspect ratio (automatically rounding to even dimensions and using Lanczos scaling).
+  - **Down-Only Frame Rate Control**: Choose from presets or custom FPS strictly capped at or below the source frame rate.
+  - **HDR to SDR Tone Mapping (BT.2020 PQ/HLG → BT.709 SDR)**: Built-in tone mapping supporting `Hable` (Filmic), `Mobius`, `Reinhard`, and `BT.2390` curves — powered by `zscale` when present and an automatic pure-Rust 33×33×33 tetrahedral `.cube` 3D LUT generator on macOS so HDR-to-SDR conversion works out of the box everywhere without washed-out colors.
+  - **3 Rate Control Modes Including Exact Target File Size Compression (`≤ MB`)**: Supports Constant Quality (`CRF`), Custom Target Bitrate (`Mbps`), and **Compress to Target File Size (`≤ X MB`)** using automatic audio budget allocation, a 4.5% container safety margin, and true 2-Pass ABR encoding so the exported file strictly stays under your chosen MB limit.
+  - **Essential Pro Export Controls**: Color depth (`Auto` / `8-bit` / `10-bit`), Rotation & Flip (`90° CW/CCW`, `180°`, Horizontal/Vertical flip), Audio encoding (`Lossless Copy`, `AAC 320/192/128k`, `Opus 160k`, `MP3 192k`, `FLAC`, or `Mute`), Subtitle handling (preserving all edits, names, languages, and time offsets), and MP4/MOV web `faststart`.
+
+### 中文
+- **新增「进阶导出」视频转码与编辑功能（默认无损导出逻辑 100% 保持不变）**：
+  - 顶部栏原有「无损导出 MKV / MP4」主按钮与直出逻辑完全不变，并在其旁新增「进阶导出」设置面板，满足自定义转码与压缩需求。
+  - **8 种主流封装格式与智能编码匹配**：支持 `MP4`、`MKV`、`MOV`、`WebM`、`AVI`、`TS`、`FLV`、`M4V`，覆盖 `H.264`、`H.265 (HEVC)`、`AV1 (SVT-AV1)`、`VP9`、`Apple ProRes 422 HQ`、`MPEG-4` 编码器、多档编码速度预设，以及 macOS Apple Silicon VideoToolbox 硬件加速开关。
+  - **锁定源长宽比的分辨率调整**：提供常见清晰度快捷档位（`2160p` ~ `360p`）及宽/高联动输入，强制锁定源视频原始长宽比（自动取偶数像素 + Lanczos 高质量缩放），绝不变形拉伸。
+  - **帧率控制（仅支持降低或保持不变）**：自动过滤高于源视频帧率的档位，自定义输入框严格限制上限为源帧率。
+  - **HDR 转 SDR 色调映射（BT.2020 PQ/HLG → BT.709 SDR）**：支持 `Hable`（电影感）、`Mobius`、`Reinhard`、`BT.2390` 四种曲线；内置纯 Rust 33×33×33 四面体插值 3D LUT 生成器并在支持环境下自动优先调用 `zscale`，macOS / Windows 开箱即用，色彩自然不泛灰。
+  - **码率控制与「按目标文件大小压缩（≤ MB）」**：支持恒定画质（CRF）、指定视频码率（Mbps）和**按目标体积压缩（≤ 设定 MB）**；体积压缩模式自动分配音视频码率、预留 4.5% 封装冗余并执行双遍编码（2-Pass），精准保证输出文件不超过设定大小。
+  - **必备专业导出配置**：支持色深选择（自动 / 8-bit / 10-bit）、画面旋转与镜像翻转（顺/逆时针 90°、180°、水平/垂直翻转）、音频编码（无损直出 / AAC / Opus / MP3 / FLAC / 静音移除）、字幕保留/关闭（完整兼容自定义名称、语言与时间偏移）以及 MP4/MOV 网页快速起播（`faststart`）。
+
+---
+
 ## [1.6.7] - 2026-11-25
 
 ### English

@@ -6,6 +6,7 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { Scissors, Volume2, Subtitles } from 'lucide-react';
 
 import type {
+  AdvancedExportConfig,
   CutRange,
   EditableAudioTrack,
   EditableSubtitleTrack,
@@ -41,6 +42,7 @@ import { MediaDetailsModal } from './components/MediaDetailsModal';
 import { LanguageModal } from './components/LanguageModal';
 import { UpdateModal } from './components/UpdateModal';
 import { MissingMediaModal } from './components/MissingMediaModal';
+import { AdvancedExportModal } from './components/AdvancedExportModal';
 import { useI18n } from './i18n';
 
 const INITIAL_PLAYER_STATE: PlayerStateEvent = {
@@ -134,7 +136,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.6.7';
+const APP_VERSION = '1.7.0';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 const MAX_HISTORY_STEPS = 80;
 
@@ -199,6 +201,7 @@ export function App() {
   const [isNativeReady, setIsNativeReady] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [showAdvancedExport, setShowAdvancedExport] = useState(false);
   const [skimmingEnabled, setSkimmingEnabled] = useState(false);
 
   // Auto-update state (background check on startup + manual check + full self-update)
@@ -2656,6 +2659,10 @@ export function App() {
 
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
+      if (e.key === 'Escape' && showAdvancedExport) {
+        setShowAdvancedExport(false);
+        return;
+      }
       if (e.key === 'Escape' && pendingProject) {
         handleCancelMissingMedia();
         return;
@@ -2677,7 +2684,7 @@ export function App() {
         return;
       }
 
-      if (!media || showDetails || showUpdateModal || pendingProject) return;
+      if (!media || showDetails || showUpdateModal || pendingProject || showAdvancedExport) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -2727,6 +2734,7 @@ export function App() {
     media,
     showDetails,
     showUpdateModal,
+    showAdvancedExport,
     pendingProject,
     updateProgress?.stage,
     handleUndo,
@@ -2916,8 +2924,138 @@ export function App() {
     updateActiveTab,
   ]);
 
+  // Advanced Transcoding Export (custom container, codec, resolution, FPS, bitrate/target-size, HDR->SDR)
+  const handleStartAdvancedExport = useCallback(
+    async (advConfig: AdvancedExportConfig) => {
+      if (!media || keptSegments.length === 0) return;
+      setShowAdvancedExport(false);
+      handleSkimEnd(false);
+
+      invoke('player_set_pause', { paused: true }).catch(() => {});
+
+      const ext = advConfig.container;
+      const baseDir = activeTab.outputDir || getDirName(media.file_path);
+      const defaultName = `${getBaseNameWithoutExt(media.file_name)}-adv.${ext}`;
+      const defaultPath = baseDir ? joinPath(baseDir, defaultName) : defaultName;
+
+      const chosen = await save({
+        title: t('dlg.exportVideoTitle', { fmt: ext.toUpperCase() }),
+        defaultPath,
+        filters: [{ name: `${ext.toUpperCase()} (.${ext})`, extensions: [ext] }],
+      });
+      if (!chosen) return;
+
+      const extRegex = new RegExp(`\\.${ext}$`, 'i');
+      const outputPath = extRegex.test(chosen) ? chosen : `${chosen}.${ext}`;
+      const chosenDir = getDirName(outputPath);
+      if (chosenDir && chosenDir !== activeTab.outputDir) {
+        updateActiveTab((prev) => ({ ...prev, outputDir: chosenDir }));
+      }
+
+      const enabledSubtitles = activeTab.subtitleTracks.filter((s) => s.enabled);
+
+      const request = {
+        input_path: media.file_path,
+        output_path: outputPath,
+        output_format: ext,
+        total_source_duration: duration,
+        is_full_file: isFullFile,
+        kept_segments: keptSegments,
+        keep_audio_tracks: activeTab.audioTracks
+          .filter((tr) => tr.enabled && tr.source_kind === 'internal')
+          .map((tr) => ({
+            audio_index: tr.audio_index,
+            title: tr.title.trim() || `音轨 ${tr.audio_index + 1}`,
+            language: tr.language.trim() || null,
+            is_default: tr.is_default,
+          })),
+        external_audio_tracks: activeTab.audioTracks
+          .filter((tr) => tr.enabled && tr.source_kind === 'external' && tr.file_path)
+          .map((tr) => ({
+            file_path: tr.file_path!,
+            title: tr.title.trim() || '外部音轨',
+            language: tr.language.trim() || null,
+            is_default: tr.is_default,
+          })),
+        mixed_audio_tracks: activeTab.mixedTracks
+          .filter((m) => m.enabled && m.source_audio_indices.length >= 2)
+          .map((m) => ({
+            source_audio_indices: m.source_audio_indices,
+            gains_db: m.source_audio_indices.map((idx) => m.gains_db[idx] ?? 0),
+            title: m.title.trim() || '混合音轨',
+            codec: m.codec,
+            normalize: m.normalize,
+            is_default: m.is_default,
+          })),
+        keep_subtitles: advConfig.subtitle_mode !== 'none' && enabledSubtitles.length > 0,
+        subtitle_codecs: media.subtitle_tracks.map((s) => s.codec_name),
+        subtitle_tracks:
+          advConfig.subtitle_mode === 'none'
+            ? []
+            : enabledSubtitles.map((s) => ({
+                source_kind: s.source_kind,
+                subtitle_index: s.source_kind === 'internal' ? s.subtitle_index ?? null : null,
+                file_path: s.source_kind === 'external' ? s.file_path ?? null : null,
+                codec_name: s.codec_name,
+                title: s.title.trim(),
+                language: s.language.trim() || null,
+                is_default: s.is_default,
+                delay_sec: s.delay_sec || 0,
+              })),
+        smart_cut: false,
+        keyframes: [],
+        video_meta: media.video
+          ? {
+              codec_name: media.video.codec_name,
+              fps: media.video.fps,
+              pix_fmt: media.video.pix_fmt,
+              color_space: media.video.color_space,
+              color_transfer: media.video.color_transfer,
+              color_primaries: media.video.color_primaries,
+              color_range: media.video.color_range,
+              time_base_den: media.video.time_base_den,
+              master_display: media.video.master_display,
+              max_cll: media.video.max_cll,
+              format_name: media.format_name,
+            }
+          : null,
+        advanced: advConfig,
+      };
+
+      try {
+        await invoke<string>('start_export', { request });
+      } catch (err) {
+        setExportProgress({
+          status: 'error',
+          percent: 0,
+          out_time_sec: 0,
+          expected_duration_sec: duration,
+          speed: '',
+          written_bytes: 0,
+          message: String(err),
+          output_path: outputPath,
+        });
+      }
+    },
+    [media, activeTab, keptSegments, isFullFile, duration, handleSkimEnd, t, updateActiveTab]
+  );
+
   const canExport = Boolean(media && keptSegments.length > 0);
   const isBusyWorkspace = isExporting || isLoadingProject;
+  const expectedKeptDuration = useMemo(() => {
+    if (isFullFile) return duration;
+    return keptSegments.reduce((acc, s) => acc + Math.max(0, s.end - s.start), 0);
+  }, [isFullFile, duration, keptSegments]);
+  const enabledAudioOutputCount = useMemo(
+    () =>
+      activeTab.audioTracks.filter((tr) => tr.enabled).length +
+      activeTab.mixedTracks.filter((m) => m.enabled && m.source_audio_indices.length >= 2).length,
+    [activeTab.audioTracks, activeTab.mixedTracks]
+  );
+  const enabledSubtitleOutputCount = useMemo(
+    () => activeTab.subtitleTracks.filter((s) => s.enabled).length,
+    [activeTab.subtitleTracks]
+  );
 
   return (
     <div className="w-full h-full flex flex-col bg-[#090b10] text-zinc-100 overflow-hidden">
@@ -2971,6 +3109,7 @@ export function App() {
           updateActiveTab((prev) => ({ ...prev, exportFormat: fmt }));
         }}
         onStartExport={handleStartExport}
+        onOpenAdvancedExport={() => setShowAdvancedExport(true)}
       />
 
       {/* Middle Studio Workspace */}
@@ -2981,7 +3120,11 @@ export function App() {
             media={media}
             isNativeReady={isNativeReady}
             hideNativeView={
-              showDetails || needsLanguageSetup || showUpdateModal || Boolean(pendingProject)
+              showDetails ||
+              needsLanguageSetup ||
+              showUpdateModal ||
+              Boolean(pendingProject) ||
+              showAdvancedExport
             }
             errorMsg={activeTab.playerError}
             onImportVideo={handleImportVideo}
@@ -3282,6 +3425,18 @@ export function App() {
         onToggleSkipItem={handleToggleSkipMissingMedia}
         onCancel={handleCancelMissingMedia}
         onConfirm={() => void handleConfirmMissingMedia()}
+      />
+
+      {/* Advanced Transcoding Export Modal (native video view auto-hidden while open) */}
+      <AdvancedExportModal
+        open={showAdvancedExport}
+        media={media}
+        expectedDurationSec={expectedKeptDuration}
+        audioTrackCount={enabledAudioOutputCount}
+        subtitleTrackCount={enabledSubtitleOutputCount}
+        isBusy={isBusyWorkspace}
+        onClose={() => setShowAdvancedExport(false)}
+        onConfirmExport={(cfg) => void handleStartAdvancedExport(cfg)}
       />
 
       {/* First-Launch Language Selection Modal (English / 简体中文) */}

@@ -1,3 +1,4 @@
+mod advanced_export;
 mod bins;
 mod exporter;
 mod keyframe_index;

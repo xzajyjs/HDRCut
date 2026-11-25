@@ -18,6 +18,7 @@ import {
   FileDown,
   FileUp,
   ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { MediaInfo, ToolStatus } from '../types/media';
 import { formatBitrate, formatBytes } from '../utils/timecode';
@@ -49,6 +50,7 @@ interface TopBarProps {
   onPickOutputDir: () => void;
   onExportFormatChange: (fmt: 'mkv' | 'mp4') => void;
   onStartExport: () => void;
+  onOpenAdvancedExport: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -77,6 +79,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onPickOutputDir,
   onExportFormatChange,
   onStartExport,
+  onOpenAdvancedExport,
 }) => {
   const { locale, toggleLocale, t } = useI18n();
   const video = media?.video;
@@ -106,7 +109,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight text-white">HDRCut</div>
-            <div className="text-[10px] text-zinc-500 font-medium">v1.6.7</div>
+            <div className="text-[10px] text-zinc-500 font-medium">v1.7.0</div>
           </div>
         </div>
 
@@ -357,7 +360,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
         </div>
 
-        {/* Export CTA */}
+        {/* Default Lossless Export CTA (100% unchanged stream-copy / Smart Cut flow) */}
         <button
           onClick={onStartExport}
           disabled={!canExport || isExporting}
@@ -373,6 +376,18 @@ export const TopBar: React.FC<TopBarProps> = ({
               ? t('top.exporting')
               : t('top.losslessExport', { fmt: exportFormat.toUpperCase() })}
           </span>
+        </button>
+
+        {/* Advanced Transcoding Export CTA */}
+        <button
+          type="button"
+          onClick={onOpenAdvancedExport}
+          disabled={!canExport || isExporting}
+          className="h-8 px-2.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 disabled:opacity-35 disabled:cursor-not-allowed text-xs font-semibold text-cyan-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+          title={t('adv.topBtnTitle')}
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+          <span>{t('adv.topBtn')}</span>
         </button>
       </div>
     </header>

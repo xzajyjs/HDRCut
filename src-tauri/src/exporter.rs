@@ -123,6 +123,9 @@ pub struct ExportRequest {
     pub keyframes: Vec<f64>,
     #[serde(default)]
     pub video_meta: Option<SmartCutVideoMeta>,
+    /// Optional Advanced Export transcoding config; when `None`, uses strictly lossless stream-copy / Smart Cut.
+    #[serde(default)]
+    pub advanced: Option<crate::advanced_export::AdvancedExportConfig>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -217,9 +220,22 @@ impl ExportManager {
         *self.cancelled.lock() = false;
 
         let mut temp_files: Vec<PathBuf> = Vec::new();
-        let result = self
-            .run_export_inner(&app, &ffmpeg, &req, expected_duration, &mut temp_files)
-            .await;
+        let result = if let Some(ref adv_cfg) = req.advanced {
+            crate::advanced_export::run_advanced_export(
+                &app,
+                &ffmpeg,
+                &req,
+                adv_cfg,
+                expected_duration,
+                &self.active_pid,
+                &self.cancelled,
+                &mut temp_files,
+            )
+            .await
+        } else {
+            self.run_export_inner(&app, &ffmpeg, &req, expected_duration, &mut temp_files)
+                .await
+        };
 
         // Always clean up all temporary concat manifests and Smart Cut boundary clips
         for p in &temp_files {

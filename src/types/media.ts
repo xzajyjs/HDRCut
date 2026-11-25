@@ -296,3 +296,42 @@ export interface MissingMediaItem {
   relinkedPath: string | null;
   skipped: boolean;
 }
+
+export type AdvancedContainerFormat = 'mp4' | 'mkv' | 'mov' | 'webm' | 'avi' | 'ts' | 'flv' | 'm4v';
+export type AdvancedVideoCodec = 'h264' | 'hevc' | 'av1' | 'vp9' | 'prores' | 'mpeg4';
+export type RateControlMode = 'crf' | 'bitrate' | 'target_size';
+export type EncodingPreset = 'ultrafast' | 'veryfast' | 'fast' | 'medium' | 'slow';
+export type TonemapAlgorithm = 'hable' | 'mobius' | 'reinhard' | 'bt2390';
+export type ColorDepthMode = 'auto' | '8bit' | '10bit';
+export type AudioExportMode =
+  | 'copy'
+  | 'aac_320'
+  | 'aac_192'
+  | 'aac_128'
+  | 'opus_160'
+  | 'mp3_192'
+  | 'flac'
+  | 'none';
+export type SubtitleExportMode = 'keep' | 'none';
+export type VideoRotationMode = 'none' | 'cw90' | 'rot180' | 'ccw90' | 'hflip' | 'vflip';
+
+export interface AdvancedExportConfig {
+  container: AdvancedContainerFormat;
+  video_codec: AdvancedVideoCodec;
+  width: number | null;
+  height: number | null;
+  fps: number | null;
+  rate_control: RateControlMode;
+  crf: number | null;
+  video_bitrate_kbps: number | null;
+  target_size_mb: number | null;
+  preset: EncodingPreset;
+  use_hw_accel: boolean;
+  hdr_to_sdr: boolean;
+  tonemap_algo: TonemapAlgorithm;
+  color_depth: ColorDepthMode;
+  audio_mode: AudioExportMode;
+  subtitle_mode: SubtitleExportMode;
+  faststart: boolean;
+  rotation: VideoRotationMode;
+}
