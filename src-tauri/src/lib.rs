@@ -8,6 +8,7 @@ mod mpv_mac_gl;
 mod mpv_player;
 #[cfg(not(target_os = "macos"))]
 mod mpv_view;
+mod project;
 mod updater;
 
 use bins::{check_tool_status, ToolStatus};
@@ -288,6 +289,26 @@ fn cancel_app_update(state: State<'_, AppState>) {
     state.updater.cancel();
 }
 
+#[tauri::command]
+fn save_project(file_path: String, content: String) -> Result<(), String> {
+    project::save_project_file(&file_path, &content)
+}
+
+#[tauri::command]
+fn load_project(file_path: String) -> Result<String, String> {
+    project::load_project_file(&file_path)
+}
+
+#[tauri::command]
+fn check_files_exist(paths: Vec<String>) -> Vec<bool> {
+    project::check_files_exist(paths)
+}
+
+#[tauri::command]
+fn find_file_in_dir(dir_path: String, file_name: String) -> Option<String> {
+    project::find_file_in_dir(&dir_path, &file_name)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_state = AppState {
@@ -336,17 +357,35 @@ pub fn run() {
             check_app_update,
             install_app_update,
             cancel_app_update,
+            save_project,
+            load_project,
+            check_files_exist,
+            find_file_in_dir,
         ])
         .setup(|app| {
-            // Build native menu so Cmd+W closes the active tab (not the entire window!)
-            // and Cmd+T opens a new tab, while preserving standard Edit copy/paste/selectAll.
-            let new_tab = MenuItemBuilder::with_id("new-tab", "新建标签页")
+            // Build native menu so Cmd+W closes the active tab (not the entire window!),
+            // Cmd+Z / Cmd+Shift+Z drive global Undo/Redo, and Cmd+S / Cmd+Shift+O manage projects.
+            let new_tab = MenuItemBuilder::with_id("new-tab", "新建标签页 / New Tab")
                 .accelerator("CmdOrCtrl+T")
                 .build(app)?;
-            let open_video = MenuItemBuilder::with_id("open-video", "导入视频...")
+            let open_video = MenuItemBuilder::with_id("open-video", "导入视频... / Import Video...")
                 .accelerator("CmdOrCtrl+O")
                 .build(app)?;
-            let close_tab = MenuItemBuilder::with_id("close-tab", "关闭当前标签页")
+            let open_project =
+                MenuItemBuilder::with_id("open-project", "打开/导入项目... / Open Project...")
+                    .accelerator("CmdOrCtrl+Shift+O")
+                    .build(app)?;
+            let save_project_item =
+                MenuItemBuilder::with_id("save-project", "保存项目 / Save Project")
+                    .accelerator("CmdOrCtrl+S")
+                    .build(app)?;
+            let save_project_as = MenuItemBuilder::with_id(
+                "save-project-as",
+                "导出/另存为项目... / Save Project As...",
+            )
+            .accelerator("CmdOrCtrl+Shift+S")
+            .build(app)?;
+            let close_tab = MenuItemBuilder::with_id("close-tab", "关闭当前标签页 / Close Tab")
                 .accelerator("CmdOrCtrl+W")
                 .build(app)?;
 
@@ -354,12 +393,23 @@ pub fn run() {
                 .item(&new_tab)
                 .item(&open_video)
                 .separator()
+                .item(&open_project)
+                .item(&save_project_item)
+                .item(&save_project_as)
+                .separator()
                 .item(&close_tab)
                 .build()?;
 
+            let undo_item = MenuItemBuilder::with_id("undo", "撤销 / Undo")
+                .accelerator("CmdOrCtrl+Z")
+                .build(app)?;
+            let redo_item = MenuItemBuilder::with_id("redo", "重做 / Redo")
+                .accelerator("CmdOrCtrl+Shift+Z")
+                .build(app)?;
+
             let edit_menu = SubmenuBuilder::new(app, "编辑")
-                .item(&PredefinedMenuItem::undo(app, None)?)
-                .item(&PredefinedMenuItem::redo(app, None)?)
+                .item(&undo_item)
+                .item(&redo_item)
                 .separator()
                 .item(&PredefinedMenuItem::cut(app, None)?)
                 .item(&PredefinedMenuItem::copy(app, None)?)
@@ -430,6 +480,21 @@ pub fn run() {
                 }
                 "open-video" => {
                     let _ = app.emit("shortcut-open-video", ());
+                }
+                "open-project" => {
+                    let _ = app.emit("shortcut-open-project", ());
+                }
+                "save-project" => {
+                    let _ = app.emit("shortcut-save-project", ());
+                }
+                "save-project-as" => {
+                    let _ = app.emit("shortcut-save-project-as", ());
+                }
+                "undo" => {
+                    let _ = app.emit("shortcut-undo", ());
+                }
+                "redo" => {
+                    let _ = app.emit("shortcut-redo", ());
                 }
                 "prev-tab" => {
                     let _ = app.emit("shortcut-step-tab", -1i32);

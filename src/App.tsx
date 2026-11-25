@@ -12,7 +12,9 @@ import type {
   ExportProgressEvent,
   ExternalAudioInfo,
   ExternalSubtitleInfo,
+  HDRCutProjectFile,
   MediaInfo,
+  MissingMediaItem,
   PlayerStateEvent,
   TabSession,
   ToolStatus,
@@ -20,6 +22,12 @@ import type {
   UpdateProgressEvent,
 } from './types/media';
 import { computeKeptSegments, snapToNearestKeyframe, stepKeyframe } from './utils/segments';
+import {
+  applyRelinkDecisions,
+  collectProjectMediaRefs,
+  parseProjectFile,
+  serializeProject,
+} from './utils/project';
 import { TabBar } from './components/TabBar';
 import { TopBar } from './components/TopBar';
 import { VideoViewport } from './components/VideoViewport';
@@ -32,6 +40,7 @@ import { ExportProgressBar } from './components/ExportProgressBar';
 import { MediaDetailsModal } from './components/MediaDetailsModal';
 import { LanguageModal } from './components/LanguageModal';
 import { UpdateModal } from './components/UpdateModal';
+import { MissingMediaModal } from './components/MissingMediaModal';
 import { useI18n } from './i18n';
 
 const INITIAL_PLAYER_STATE: PlayerStateEvent = {
@@ -125,8 +134,56 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.5.2';
+const APP_VERSION = '1.6.0';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
+const MAX_HISTORY_STEPS = 80;
+
+interface WorkspaceSnapshot {
+  tabs: TabSession[];
+  activeTabId: string;
+}
+
+function cloneTabsForHistory(list: TabSession[]): TabSession[] {
+  return list.map((tab) => ({
+    ...tab,
+    // MediaInfo is immutable after analysis and holds large keyframe arrays
+    media: tab.media,
+    isAnalyzing: false,
+    playerState: { ...tab.playerState },
+    ranges: tab.ranges.map((r) => ({ ...r })),
+    audioTracks: tab.audioTracks.map((a) => ({ ...a })),
+    mixedTracks: tab.mixedTracks.map((m) => ({
+      ...m,
+      source_audio_indices: [...m.source_audio_indices],
+      gains_db: { ...m.gains_db },
+    })),
+    subtitleTracks: tab.subtitleTracks.map((s) => ({ ...s })),
+  }));
+}
+
+function needsFullPlayerResync(
+  a: TabSession | undefined,
+  b: TabSession | undefined
+): boolean {
+  if (!a || !b) return true;
+  if (a.id !== b.id) return true;
+  if ((a.media?.file_path ?? null) !== (b.media?.file_path ?? null)) return true;
+  const extA1 = a.audioTracks
+    .filter((x) => x.source_kind === 'external')
+    .map((x) => x.file_path || '');
+  const extA2 = b.audioTracks
+    .filter((x) => x.source_kind === 'external')
+    .map((x) => x.file_path || '');
+  if (extA1.length !== extA2.length || extA1.some((p, i) => p !== extA2[i])) return true;
+  const extS1 = a.subtitleTracks
+    .filter((x) => x.source_kind === 'external')
+    .map((x) => x.file_path || '');
+  const extS2 = b.subtitleTracks
+    .filter((x) => x.source_kind === 'external')
+    .map((x) => x.file_path || '');
+  if (extS1.length !== extS2.length || extS1.some((p, i) => p !== extS2[i])) return true;
+  return false;
+}
 
 function loadAutoUpdatePref(): boolean {
   try {
@@ -173,6 +230,70 @@ export function App() {
   const activeTabIdRef = useRef(effectiveActiveTabId);
   activeTabIdRef.current = effectiveActiveTabId;
   const switchGuardUntilRef = useRef(0);
+
+  // Global Undo / Redo history stacks (covers all tabs, cuts, audio, subtitles, project loads)
+  const historyRef = useRef<{
+    past: WorkspaceSnapshot[];
+    future: WorkspaceSnapshot[];
+    lastKey: string;
+    lastAt: number;
+  }>({
+    past: [],
+    future: [],
+    lastKey: '',
+    lastAt: 0,
+  });
+  const [historyCounts, setHistoryCounts] = useState({ past: 0, future: 0 });
+  const lastUndoRedoAtRef = useRef(0);
+
+  const recordHistory = useCallback((coalesceKey?: string) => {
+    const now = performance.now();
+    const h = historyRef.current;
+    if (
+      coalesceKey &&
+      h.lastKey === coalesceKey &&
+      now - h.lastAt < 650 &&
+      h.past.length > 0
+    ) {
+      h.lastAt = now;
+      if (h.future.length > 0) {
+        h.future = [];
+        setHistoryCounts({ past: h.past.length, future: 0 });
+      }
+      return;
+    }
+
+    const snap: WorkspaceSnapshot = {
+      tabs: cloneTabsForHistory(tabsRef.current),
+      activeTabId: activeTabIdRef.current,
+    };
+    h.past.push(snap);
+    if (h.past.length > MAX_HISTORY_STEPS) {
+      h.past.shift();
+    }
+    h.future = [];
+    h.lastKey = coalesceKey || '';
+    h.lastAt = now;
+    setHistoryCounts({ past: h.past.length, future: 0 });
+  }, []);
+
+  // Project (.hdrcut) state & missing media relink modal state
+  const [currentProjectPath, setCurrentProjectPath] = useState<string | null>(null);
+  const currentProjectPathRef = useRef(currentProjectPath);
+  currentProjectPathRef.current = currentProjectPath;
+  const [pendingProject, setPendingProject] = useState<HDRCutProjectFile | null>(null);
+  const [pendingProjectPath, setPendingProjectPath] = useState<string | null>(null);
+  const [missingMediaItems, setMissingMediaItems] = useState<MissingMediaItem[]>([]);
+  const [isLoadingProject, setIsLoadingProject] = useState(false);
+  const isLoadingProjectRef = useRef(isLoadingProject);
+  isLoadingProjectRef.current = isLoadingProject;
+
+  const currentProjectName = useMemo(() => {
+    if (!currentProjectPath) return null;
+    const idx = Math.max(currentProjectPath.lastIndexOf('/'), currentProjectPath.lastIndexOf('\\'));
+    const base = idx >= 0 ? currentProjectPath.slice(idx + 1) : currentProjectPath;
+    return base.replace(/\.hdrcut$/i, '') || base;
+  }, [currentProjectPath]);
 
   // Final Cut Pro–style timeline skimming state (keeps cyan playhead anchored while previewing hover frame)
   const skimRef = useRef<{
@@ -419,6 +540,631 @@ export function App() {
     }
   }, [t, updateTab]);
 
+  // Global Undo / Redo execution
+  const applyHistoryStep = useCallback(
+    async (direction: 'undo' | 'redo') => {
+      if (isExportingRef.current || isLoadingProjectRef.current) return;
+      const h = historyRef.current;
+      const sourceStack = direction === 'undo' ? h.past : h.future;
+      const targetStack = direction === 'undo' ? h.future : h.past;
+      if (sourceStack.length === 0) return;
+
+      handleSkimEnd(false);
+
+      const currentSnap: WorkspaceSnapshot = {
+        tabs: cloneTabsForHistory(tabsRef.current),
+        activeTabId: activeTabIdRef.current,
+      };
+      const targetSnap = sourceStack.pop()!;
+      targetStack.push(currentSnap);
+      if (targetStack.length > MAX_HISTORY_STEPS) {
+        targetStack.shift();
+      }
+      h.lastKey = '';
+      h.lastAt = 0;
+      setHistoryCounts({ past: h.past.length, future: h.future.length });
+
+      const prevActive = tabsRef.current.find((tb) => tb.id === activeTabIdRef.current);
+      const rawNextActive =
+        targetSnap.tabs.find((tb) => tb.id === targetSnap.activeTabId) || targetSnap.tabs[0];
+
+      const sameVideoInSameTab = Boolean(
+        prevActive &&
+          rawNextActive &&
+          prevActive.id === rawNextActive.id &&
+          (prevActive.media?.file_path ?? null) === (rawNextActive.media?.file_path ?? null)
+      );
+
+      // Keep live playhead when undoing/redoing edits on the same video
+      const restoredTabs = sameVideoInSameTab
+        ? targetSnap.tabs.map((tb) =>
+            tb.id === rawNextActive!.id
+              ? {
+                  ...tb,
+                  playerState: {
+                    ...tb.playerState,
+                    time_pos: prevActive!.playerState.time_pos,
+                    paused: prevActive!.playerState.paused,
+                  },
+                }
+              : tb
+          )
+        : targetSnap.tabs;
+
+      const nextActive =
+        restoredTabs.find((tb) => tb.id === targetSnap.activeTabId) || restoredTabs[0];
+
+      setShowDetails(false);
+      setTabs(restoredTabs);
+      setActiveTabId(nextActive.id);
+      activeTabIdRef.current = nextActive.id;
+
+      if (needsFullPlayerResync(prevActive, nextActive)) {
+        await syncPlayerToTab(nextActive);
+      } else if (nextActive?.media) {
+        if (prevActive && nextActive.playerState.aid !== prevActive.playerState.aid) {
+          invoke('player_set_audio_track', { aid: nextActive.playerState.aid }).catch(() => {});
+        }
+        if (prevActive && nextActive.playerState.sid !== prevActive.playerState.sid) {
+          invoke('player_set_subtitle_track', { sid: nextActive.playerState.sid }).catch(() => {});
+        }
+        const nextSub = nextActive.subtitleTracks.find(
+          (s) => s.mpv_sid === nextActive.playerState.sid
+        );
+        const prevSub = prevActive?.subtitleTracks.find(
+          (s) => s.mpv_sid === prevActive.playerState.sid
+        );
+        if (
+          (nextSub?.delay_sec ?? 0) !== (prevSub?.delay_sec ?? 0) ||
+          nextActive.playerState.sid !== prevActive?.playerState.sid
+        ) {
+          invoke('player_set_sub_delay', { seconds: nextSub?.delay_sec ?? 0 }).catch(() => {});
+        }
+      }
+    },
+    [handleSkimEnd, syncPlayerToTab]
+  );
+
+  const handleUndo = useCallback(() => {
+    void applyHistoryStep('undo');
+  }, [applyHistoryStep]);
+
+  const handleRedo = useCallback(() => {
+    void applyHistoryStep('redo');
+  }, [applyHistoryStep]);
+
+  // Project (.hdrcut) Save / Export / Import / Relink Missing Media
+  const handleSaveProject = useCallback(
+    async (forceSaveAs = false) => {
+      if (isExportingRef.current || isLoadingProjectRef.current) return;
+
+      let targetPath = !forceSaveAs ? currentProjectPathRef.current : null;
+      if (!targetPath) {
+        const curTab =
+          tabsRef.current.find((tb) => tb.id === activeTabIdRef.current) || tabsRef.current[0];
+        const fallbackDir =
+          curTab?.outputDir || (curTab?.media ? getDirName(curTab.media.file_path) : '');
+        const suggestedBase = curTab?.media
+          ? getBaseNameWithoutExt(curTab.media.file_name)
+          : 'HDRCut-Project';
+        const defaultPath =
+          currentProjectPathRef.current ||
+          (fallbackDir ? joinPath(fallbackDir, `${suggestedBase}.hdrcut`) : `${suggestedBase}.hdrcut`);
+
+        const chosen = await save({
+          title: t('proj.saveDialogTitle'),
+          defaultPath,
+          filters: [{ name: t('proj.fileFilterName'), extensions: ['hdrcut'] }],
+        });
+        if (!chosen) return;
+        targetPath = /\.hdrcut$/i.test(chosen) ? chosen : `${chosen}.hdrcut`;
+      }
+
+      const idx = Math.max(targetPath.lastIndexOf('/'), targetPath.lastIndexOf('\\'));
+      const fileName = idx >= 0 ? targetPath.slice(idx + 1) : targetPath;
+      const projName = fileName.replace(/\.hdrcut$/i, '') || 'HDRCut Project';
+
+      try {
+        const payload = serializeProject(
+          tabsRef.current,
+          activeTabIdRef.current,
+          projName,
+          APP_VERSION
+        );
+        await invoke('save_project', {
+          filePath: targetPath,
+          content: JSON.stringify(payload, null, 2),
+        });
+        setCurrentProjectPath(targetPath);
+        setExportProgress({
+          status: 'done',
+          percent: 100,
+          out_time_sec: 0,
+          expected_duration_sec: 0,
+          speed: '',
+          written_bytes: 0,
+          message: t('proj.savedToast', { name: fileName }),
+          output_path: targetPath,
+        });
+      } catch (err) {
+        setExportProgress({
+          status: 'error',
+          percent: 0,
+          out_time_sec: 0,
+          expected_duration_sec: 0,
+          speed: '',
+          written_bytes: 0,
+          message: t('proj.saveFail', { err: String(err) }),
+          output_path: targetPath,
+        });
+      }
+    },
+    [t]
+  );
+
+  const hydrateAndLoadProject = useCallback(
+    async (project: HDRCutProjectFile, projectFilePath: string) => {
+      setIsLoadingProject(true);
+      setShowDetails(false);
+      handleSkimEnd(false);
+
+      setExportProgress({
+        status: 'running',
+        percent: 20,
+        out_time_sec: 0,
+        expected_duration_sec: 0,
+        speed: '',
+        written_bytes: 0,
+        message: t('proj.loadingMsg'),
+        output_path: projectFilePath,
+      });
+
+      try {
+        const savedTabs = project.tabs.length > 0 ? project.tabs : [];
+        const hydratedTabs: TabSession[] = [];
+
+        for (let tabIdx = 0; tabIdx < savedTabs.length; tabIdx++) {
+          const st = savedTabs[tabIdx];
+          const baseTab = createEmptyTab(st.output_dir || '');
+          baseTab.exportFormat = st.export_format === 'mp4' ? 'mp4' : 'mkv';
+          baseTab.cutMode = st.cut_mode === 'keep' ? 'keep' : 'remove';
+          baseTab.smartCut = st.smart_cut !== false;
+          baseTab.activePanelTab =
+            st.active_panel_tab === 'audio' || st.active_panel_tab === 'subtitle'
+              ? st.active_panel_tab
+              : 'cut';
+
+          if (!st.video_path) {
+            hydratedTabs.push(baseTab);
+            continue;
+          }
+
+          try {
+            const info = await invoke<MediaInfo>('analyze_media', { filePath: st.video_path });
+
+            // Rebuild audio tracks (internal + external in saved order)
+            const internalAudioMap = new Map(
+              info.audio_tracks.map((tr) => [tr.audio_index, tr])
+            );
+            const rebuiltAudio: EditableAudioTrack[] = [];
+            let nextTempAid = info.audio_tracks.length + 1;
+
+            if (st.audio_tracks && st.audio_tracks.length > 0) {
+              for (let ai = 0; ai < st.audio_tracks.length; ai++) {
+                const sa = st.audio_tracks[ai];
+                if (sa.source_kind === 'internal') {
+                  const raw = internalAudioMap.get(sa.audio_index);
+                  if (!raw) continue;
+                  rebuiltAudio.push({
+                    id: `int_a_${raw.audio_index}`,
+                    source_kind: 'internal',
+                    audio_index: raw.audio_index,
+                    mpv_aid: raw.mpv_aid,
+                    codec_name: raw.codec_name,
+                    channel_layout: raw.channel_layout,
+                    sample_rate: raw.sample_rate,
+                    bit_rate: raw.bit_rate,
+                    language: sa.language ?? raw.language ?? '',
+                    title: sa.title || raw.title || `音轨 ${ai + 1}`,
+                    original_title: raw.title || '',
+                    enabled: sa.enabled,
+                    is_default: sa.is_default,
+                  });
+                } else if (sa.source_kind === 'external' && sa.file_path) {
+                  try {
+                    const extInfo = await invoke<ExternalAudioInfo>('probe_external_audio_file', {
+                      filePath: sa.file_path,
+                    });
+                    rebuiltAudio.push({
+                      id: `ext_a_${Date.now()}_${tabIdx}_${ai}`,
+                      source_kind: 'external',
+                      audio_index: -1,
+                      file_path: extInfo.file_path,
+                      mpv_aid: nextTempAid++,
+                      codec_name: extInfo.codec_name,
+                      channel_layout: extInfo.channel_layout,
+                      sample_rate: extInfo.sample_rate,
+                      bit_rate: extInfo.bit_rate,
+                      language: sa.language ?? extInfo.language ?? '',
+                      title: sa.title || extInfo.title || getBaseNameWithoutExt(extInfo.file_name),
+                      original_title: extInfo.title || extInfo.file_name,
+                      enabled: sa.enabled,
+                      is_default: sa.is_default,
+                    });
+                  } catch {
+                    // Skip unreadable external audio file
+                  }
+                }
+              }
+            } else {
+              info.audio_tracks.forEach((tr, i) => {
+                rebuiltAudio.push({
+                  id: `int_a_${tr.audio_index}`,
+                  source_kind: 'internal',
+                  audio_index: tr.audio_index,
+                  mpv_aid: tr.mpv_aid,
+                  codec_name: tr.codec_name,
+                  channel_layout: tr.channel_layout,
+                  sample_rate: tr.sample_rate,
+                  bit_rate: tr.bit_rate,
+                  language: tr.language || '',
+                  title: tr.title || `音轨 ${i + 1}`,
+                  original_title: tr.title || '',
+                  enabled: true,
+                  is_default: tr.is_default || i === 0,
+                });
+              });
+            }
+
+            // Rebuild subtitle tracks (internal + external in saved order)
+            const internalSubMap = new Map(
+              info.subtitle_tracks.map((s) => [s.subtitle_index, s])
+            );
+            const rebuiltSubs: EditableSubtitleTrack[] = [];
+            let nextTempSid = info.subtitle_tracks.length + 1;
+
+            if (st.subtitle_tracks && st.subtitle_tracks.length > 0) {
+              for (let si = 0; si < st.subtitle_tracks.length; si++) {
+                const ss = st.subtitle_tracks[si];
+                if (ss.source_kind === 'internal' && ss.subtitle_index !== undefined) {
+                  const raw = internalSubMap.get(ss.subtitle_index);
+                  if (!raw) continue;
+                  rebuiltSubs.push({
+                    id: `int_s_${raw.subtitle_index}`,
+                    source_kind: 'internal',
+                    subtitle_index: raw.subtitle_index,
+                    mpv_sid: raw.mpv_sid,
+                    codec_name: raw.codec_name,
+                    codec_long_name: raw.codec_long_name,
+                    language: ss.language ?? raw.language ?? '',
+                    title: ss.title || raw.title || `字幕 ${si + 1}`,
+                    enabled: ss.enabled,
+                    is_default: ss.is_default,
+                    delay_sec: typeof ss.delay_sec === 'number' ? ss.delay_sec : 0,
+                  });
+                } else if (ss.source_kind === 'external' && ss.file_path) {
+                  try {
+                    const extInfo = await invoke<ExternalSubtitleInfo>(
+                      'probe_external_subtitle_file',
+                      { filePath: ss.file_path }
+                    );
+                    rebuiltSubs.push({
+                      id: `ext_s_${Date.now()}_${tabIdx}_${si}`,
+                      source_kind: 'external',
+                      file_path: extInfo.file_path,
+                      mpv_sid: nextTempSid++,
+                      codec_name: extInfo.codec_name,
+                      codec_long_name: extInfo.codec_name.toUpperCase(),
+                      language: ss.language ?? extInfo.language ?? '',
+                      title: ss.title || extInfo.title,
+                      enabled: ss.enabled,
+                      is_default: ss.is_default,
+                      delay_sec: typeof ss.delay_sec === 'number' ? ss.delay_sec : 0,
+                    });
+                  } catch {
+                    // Skip unreadable external subtitle file
+                  }
+                }
+              }
+            } else {
+              info.subtitle_tracks.forEach((s, i) => {
+                rebuiltSubs.push({
+                  id: `int_s_${s.subtitle_index}`,
+                  source_kind: 'internal',
+                  subtitle_index: s.subtitle_index,
+                  mpv_sid: s.mpv_sid,
+                  codec_name: s.codec_name,
+                  codec_long_name: s.codec_long_name,
+                  language: s.language || '',
+                  title: s.title || `字幕 ${i + 1}`,
+                  enabled: true,
+                  is_default: s.is_default,
+                  delay_sec: 0,
+                });
+              });
+            }
+
+            const validAid = rebuiltAudio.some((a) => a.mpv_aid === st.active_audio_aid)
+              ? st.active_audio_aid
+              : rebuiltAudio[0]?.mpv_aid ?? 1;
+            const validSid =
+              st.active_subtitle_sid === 0
+                ? 0
+                : rebuiltSubs.some((s) => s.mpv_sid === st.active_subtitle_sid)
+                ? st.active_subtitle_sid
+                : 0;
+
+            const clampedTime = Math.max(
+              0,
+              Math.min(info.duration || 0, st.playback_time || 0)
+            );
+
+            hydratedTabs.push({
+              ...baseTab,
+              media: info,
+              isAnalyzing: false,
+              playerError: null,
+              playerState: {
+                ...INITIAL_PLAYER_STATE,
+                time_pos: clampedTime,
+                duration: info.duration,
+                paused: true,
+                volume: typeof st.volume === 'number' ? st.volume : 100,
+                speed: typeof st.speed === 'number' ? st.speed : 1,
+                hdr_passthrough: st.hdr_passthrough !== false,
+                aid: validAid,
+                sid: validSid,
+              },
+              ranges: Array.isArray(st.ranges)
+                ? st.ranges.map((r, ri) => ({
+                    id: r.id || `cut_${Date.now()}_${tabIdx}_${ri}`,
+                    start: r.start,
+                    end: r.end,
+                  }))
+                : [],
+              draftIn: typeof st.draft_in === 'number' ? st.draft_in : null,
+              draftOut: typeof st.draft_out === 'number' ? st.draft_out : null,
+              audioTracks: rebuiltAudio,
+              mixedTracks: Array.isArray(st.mixed_tracks)
+                ? st.mixed_tracks.map((m) => ({
+                    ...m,
+                    source_audio_indices: [...m.source_audio_indices],
+                    gains_db: { ...m.gains_db },
+                  }))
+                : [],
+              subtitleTracks: rebuiltSubs,
+              outputDir: st.output_dir || getDirName(info.file_path),
+            });
+          } catch (err) {
+            hydratedTabs.push({
+              ...baseTab,
+              playerError: t('msg.analyzeFail', { err: String(err) }),
+            });
+          }
+        }
+
+        const finalTabs = hydratedTabs.length > 0 ? hydratedTabs : [createEmptyTab()];
+        const targetIdx = Math.max(
+          0,
+          Math.min(project.active_tab_index || 0, finalTabs.length - 1)
+        );
+        const nextActive = finalTabs[targetIdx];
+
+        // Allow undoing back to prior workspace if user opened a project by mistake
+        recordHistory();
+
+        setTabs(finalTabs);
+        setActiveTabId(nextActive.id);
+        activeTabIdRef.current = nextActive.id;
+        setCurrentProjectPath(projectFilePath);
+
+        await syncPlayerToTab(nextActive);
+
+        setExportProgress({
+          status: 'done',
+          percent: 100,
+          out_time_sec: 0,
+          expected_duration_sec: 0,
+          speed: '',
+          written_bytes: 0,
+          message: t('proj.loadedToast', { name: project.name, n: finalTabs.length }),
+          output_path: projectFilePath,
+        });
+      } catch (err) {
+        setExportProgress({
+          status: 'error',
+          percent: 0,
+          out_time_sec: 0,
+          expected_duration_sec: 0,
+          speed: '',
+          written_bytes: 0,
+          message: t('proj.loadFail', { err: String(err) }),
+          output_path: projectFilePath,
+        });
+      } finally {
+        setIsLoadingProject(false);
+      }
+    },
+    [handleSkimEnd, recordHistory, syncPlayerToTab, t]
+  );
+
+  const handleOpenProjectPath = useCallback(
+    async (filePath: string) => {
+      if (isExportingRef.current || isLoadingProjectRef.current) return;
+
+      try {
+        const raw = await invoke<string>('load_project', { filePath });
+        const project = parseProjectFile(raw);
+        const refs = collectProjectMediaRefs(project);
+        const existsList =
+          refs.length > 0
+            ? await invoke<boolean[]>('check_files_exist', {
+                paths: refs.map((r) => r.originalPath),
+              })
+            : [];
+
+        const missing: MissingMediaItem[] = [];
+        refs.forEach((ref, i) => {
+          if (!existsList[i]) {
+            missing.push({
+              key: ref.key,
+              tabIndex: ref.tabIndex,
+              tabLabel: ref.tabLabel,
+              kind: ref.kind,
+              trackIndex: ref.trackIndex,
+              originalPath: ref.originalPath,
+              fileName: ref.fileName,
+              relinkedPath: null,
+              skipped: false,
+            });
+          }
+        });
+
+        if (missing.length > 0) {
+          setShowDetails(false);
+          setPendingProject(project);
+          setPendingProjectPath(filePath);
+          setMissingMediaItems(missing);
+        } else {
+          await hydrateAndLoadProject(project, filePath);
+        }
+      } catch (err) {
+        setExportProgress({
+          status: 'error',
+          percent: 0,
+          out_time_sec: 0,
+          expected_duration_sec: 0,
+          speed: '',
+          written_bytes: 0,
+          message: t('proj.loadFail', { err: String(err) }),
+          output_path: filePath,
+        });
+      }
+    },
+    [hydrateAndLoadProject, t]
+  );
+
+  const handleOpenProject = useCallback(async () => {
+    if (isExportingRef.current || isLoadingProjectRef.current) return;
+    const selected = await open({
+      multiple: false,
+      title: t('proj.openDialogTitle'),
+      filters: [{ name: t('proj.fileFilterName'), extensions: ['hdrcut'] }],
+    });
+    if (typeof selected === 'string') {
+      await handleOpenProjectPath(selected);
+    }
+  }, [handleOpenProjectPath, t]);
+
+  const handleLocateMissingMedia = useCallback(
+    async (key: string) => {
+      const target = missingMediaItems.find((m) => m.key === key);
+      if (!target) return;
+
+      const filters =
+        target.kind === 'video'
+          ? [
+              {
+                name: t('dlg.videoFiles'),
+                extensions: ['mkv', 'mp4', 'mov', 'm4v', 'ts', 'm2ts', 'webm', 'avi', 'flv'],
+              },
+            ]
+          : target.kind === 'audio'
+          ? [
+              {
+                name: t('dlg.audioFiles'),
+                extensions: [
+                  'flac',
+                  'wav',
+                  'aac',
+                  'm4a',
+                  'mp3',
+                  'opus',
+                  'ogg',
+                  'ac3',
+                  'eac3',
+                  'dts',
+                  'mka',
+                ],
+              },
+            ]
+          : [
+              {
+                name: t('dlg.subtitleFiles'),
+                extensions: ['srt', 'ass', 'ssa', 'vtt', 'sup', 'sub'],
+              },
+            ];
+
+      const kindText =
+        target.kind === 'video'
+          ? t('relink.kindVideo')
+          : target.kind === 'audio'
+          ? t('relink.kindAudio')
+          : t('relink.kindSubtitle');
+
+      const chosen = await open({
+        multiple: false,
+        title: t('relink.pickTitle', { kind: kindText, name: target.fileName }),
+        filters,
+      });
+      if (typeof chosen !== 'string') return;
+
+      // Smart same-folder auto-relink for all other still-missing items
+      const chosenDir = getDirName(chosen);
+      const autoFound = new Map<string, string>();
+      if (chosenDir) {
+        for (const item of missingMediaItems) {
+          if (item.key === key || item.relinkedPath) continue;
+          try {
+            const match = await invoke<string | null>('find_file_in_dir', {
+              dirPath: chosenDir,
+              fileName: item.fileName,
+            });
+            if (match) autoFound.set(item.key, match);
+          } catch {
+            // ignore folder search errors
+          }
+        }
+      }
+
+      setMissingMediaItems((prev) =>
+        prev.map((item) => {
+          if (item.key === key) {
+            return { ...item, relinkedPath: chosen, skipped: false };
+          }
+          const matched = autoFound.get(item.key);
+          if (matched) {
+            return { ...item, relinkedPath: matched, skipped: false };
+          }
+          return item;
+        })
+      );
+    },
+    [missingMediaItems, t]
+  );
+
+  const handleToggleSkipMissingMedia = useCallback((key: string) => {
+    setMissingMediaItems((prev) =>
+      prev.map((item) => (item.key === key ? { ...item, skipped: !item.skipped } : item))
+    );
+  }, []);
+
+  const handleCancelMissingMedia = useCallback(() => {
+    setPendingProject(null);
+    setPendingProjectPath(null);
+    setMissingMediaItems([]);
+  }, []);
+
+  const handleConfirmMissingMedia = useCallback(async () => {
+    if (!pendingProject || !pendingProjectPath) return;
+    const resolved = applyRelinkDecisions(pendingProject, missingMediaItems);
+    const projPath = pendingProjectPath;
+    setPendingProject(null);
+    setPendingProjectPath(null);
+    setMissingMediaItems([]);
+    await hydrateAndLoadProject(resolved, projPath);
+  }, [pendingProject, pendingProjectPath, missingMediaItems, hydrateAndLoadProject]);
+
   // Tab Actions: Select, Step, New, Close
   const handleSelectTab = useCallback(
     async (targetId: string) => {
@@ -471,8 +1217,9 @@ export function App() {
   );
 
   const handleNewTab = useCallback(async () => {
-    if (isExportingRef.current) return;
+    if (isExportingRef.current || isLoadingProjectRef.current) return;
     handleSkimEnd(false);
+    recordHistory();
     const currentDir = tabsRef.current.find((t) => t.id === activeTabIdRef.current)?.outputDir || '';
     const fresh = createEmptyTab(currentDir);
     updateActiveTab((prev) => ({
@@ -485,15 +1232,18 @@ export function App() {
     activeTabIdRef.current = fresh.id;
     switchGuardUntilRef.current = performance.now() + 350;
     await invoke('player_stop').catch(() => {});
-  }, [handleSkimEnd, updateActiveTab]);
+  }, [handleSkimEnd, recordHistory, updateActiveTab]);
 
   const handleCloseTab = useCallback(
     async (targetId: string) => {
-      if (isExportingRef.current) return;
+      if (isExportingRef.current || isLoadingProjectRef.current) return;
       handleSkimEnd(false);
       const list = tabsRef.current;
       const idx = list.findIndex((t) => t.id === targetId);
       if (idx === -1) return;
+      if (list.length === 1 && !list[0].media && list[0].ranges.length === 0) return;
+
+      recordHistory();
 
       if (list.length === 1) {
         // Closing the last tab resets it to a clean empty tab (keeps app open)
@@ -520,7 +1270,7 @@ export function App() {
         await syncPlayerToTab(nextActive);
       }
     },
-    [handleSkimEnd, syncPlayerToTab]
+    [handleSkimEnd, recordHistory, syncPlayerToTab]
   );
 
   // Load video into the currently active tab
@@ -571,6 +1321,8 @@ export function App() {
           delay_sec: 0,
         }));
 
+        recordHistory();
+
         updateTab(targetTabId, (prev) => ({
           ...prev,
           media: info,
@@ -618,11 +1370,14 @@ export function App() {
         }));
       }
     },
-    [handleSkimEnd, t, updateTab]
+    [handleSkimEnd, recordHistory, t, updateTab]
   );
 
   const handleCloseVideoInTab = useCallback(async () => {
+    const cur = tabsRef.current.find((tb) => tb.id === activeTabIdRef.current);
+    if (!cur?.media) return;
     handleSkimEnd(false);
+    recordHistory();
     try {
       await invoke('player_stop');
     } catch {
@@ -634,7 +1389,7 @@ export function App() {
       id: prev.id,
       exportFormat: prev.exportFormat,
     }));
-  }, [handleSkimEnd, updateActiveTab]);
+  }, [handleSkimEnd, recordHistory, updateActiveTab]);
 
   const handleImportVideo = useCallback(async () => {
     const selected = await open({
@@ -665,6 +1420,16 @@ export function App() {
   handleImportVideoRef.current = handleImportVideo;
   const handleLoadVideoPathRef = useRef(handleLoadVideoPath);
   handleLoadVideoPathRef.current = handleLoadVideoPath;
+  const handleUndoRef = useRef(handleUndo);
+  handleUndoRef.current = handleUndo;
+  const handleRedoRef = useRef(handleRedo);
+  handleRedoRef.current = handleRedo;
+  const handleSaveProjectRef = useRef(handleSaveProject);
+  handleSaveProjectRef.current = handleSaveProject;
+  const handleOpenProjectRef = useRef(handleOpenProject);
+  handleOpenProjectRef.current = handleOpenProject;
+  const handleOpenProjectPathRef = useRef(handleOpenProjectPath);
+  handleOpenProjectPathRef.current = handleOpenProjectPath;
 
   useEffect(() => {
     invoke<ToolStatus>('get_tool_status')
@@ -680,6 +1445,11 @@ export function App() {
     let unlistenSelectTab: (() => void) | undefined;
     let unlistenStepTab: (() => void) | undefined;
     let unlistenUpdateProgress: (() => void) | undefined;
+    let unlistenUndo: (() => void) | undefined;
+    let unlistenRedo: (() => void) | undefined;
+    let unlistenSaveProject: (() => void) | undefined;
+    let unlistenSaveProjectAs: (() => void) | undefined;
+    let unlistenOpenProject: (() => void) | undefined;
 
     listen<PlayerStateEvent>('mpv-state', (ev) => {
       if (performance.now() < switchGuardUntilRef.current) return;
@@ -731,6 +1501,52 @@ export function App() {
       unlistenStepTab = fn;
     });
 
+    listen('shortcut-undo', () => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (activeEl?.tagName === 'TEXTAREA') {
+        document.execCommand('undo');
+        return;
+      }
+      const now = performance.now();
+      if (now - lastUndoRedoAtRef.current < 40) return;
+      lastUndoRedoAtRef.current = now;
+      handleUndoRef.current();
+    }).then((fn) => {
+      unlistenUndo = fn;
+    });
+
+    listen('shortcut-redo', () => {
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (activeEl?.tagName === 'TEXTAREA') {
+        document.execCommand('redo');
+        return;
+      }
+      const now = performance.now();
+      if (now - lastUndoRedoAtRef.current < 40) return;
+      lastUndoRedoAtRef.current = now;
+      handleRedoRef.current();
+    }).then((fn) => {
+      unlistenRedo = fn;
+    });
+
+    listen('shortcut-save-project', () => {
+      handleSaveProjectRef.current(false);
+    }).then((fn) => {
+      unlistenSaveProject = fn;
+    });
+
+    listen('shortcut-save-project-as', () => {
+      handleSaveProjectRef.current(true);
+    }).then((fn) => {
+      unlistenSaveProjectAs = fn;
+    });
+
+    listen('shortcut-open-project', () => {
+      handleOpenProjectRef.current();
+    }).then((fn) => {
+      unlistenOpenProject = fn;
+    });
+
     listen<UpdateProgressEvent>('update-progress', (ev) => {
       if (ev.payload.stage === 'cancelled') {
         setUpdateProgress(null);
@@ -744,7 +1560,12 @@ export function App() {
     getCurrentWebview()
       .onDragDropEvent((event) => {
         if (event.payload.type === 'drop' && event.payload.paths.length > 0) {
-          handleLoadVideoPathRef.current(event.payload.paths[0]);
+          const dropped = event.payload.paths[0];
+          if (/\.hdrcut$/i.test(dropped)) {
+            handleOpenProjectPathRef.current(dropped);
+          } else {
+            handleLoadVideoPathRef.current(dropped);
+          }
         }
       })
       .then((fn) => {
@@ -762,6 +1583,11 @@ export function App() {
       unlistenSelectTab?.();
       unlistenStepTab?.();
       unlistenUpdateProgress?.();
+      unlistenUndo?.();
+      unlistenRedo?.();
+      unlistenSaveProject?.();
+      unlistenSaveProjectAs?.();
+      unlistenOpenProject?.();
     };
   }, []);
 
@@ -792,9 +1618,10 @@ export function App() {
       defaultPath: activeTab.outputDir || undefined,
     });
     if (typeof selected === 'string') {
+      recordHistory();
       updateActiveTab((prev) => ({ ...prev, outputDir: selected }));
     }
-  }, [activeTab.outputDir, t, updateActiveTab]);
+  }, [activeTab.outputDir, recordHistory, t, updateActiveTab]);
 
   // Playback Controls
   const handleTogglePause = useCallback(() => {
@@ -969,6 +1796,7 @@ export function App() {
   const handleAddRange = useCallback(
     (start: number, end: number) => {
       if (end <= start + 0.05) return;
+      recordHistory();
       updateActiveTab((prev) => ({
         ...prev,
         ranges: [
@@ -977,11 +1805,13 @@ export function App() {
         ],
       }));
     },
-    [updateActiveTab]
+    [recordHistory, updateActiveTab]
   );
 
   const handleAddBatchRanges = useCallback(
     (items: Array<{ start: number; end: number }>, replace: boolean) => {
+      if (items.length === 0 && !replace) return;
+      recordHistory();
       const nextItems: CutRange[] = items.map((r, i) => ({
         id: `batch_${Date.now()}_${i}`,
         start: r.start,
@@ -992,27 +1822,29 @@ export function App() {
         ranges: replace ? nextItems : [...prev.ranges, ...nextItems],
       }));
     },
-    [updateActiveTab]
+    [recordHistory, updateActiveTab]
   );
 
   const handleUpdateRange = useCallback(
     (id: string, start: number, end: number) => {
+      recordHistory(`range-edit-${id}`);
       updateActiveTab((prev) => ({
         ...prev,
         ranges: prev.ranges.map((r) => (r.id === id ? { ...r, start, end } : r)),
       }));
     },
-    [updateActiveTab]
+    [recordHistory, updateActiveTab]
   );
 
   const handleDeleteRange = useCallback(
     (id: string) => {
+      recordHistory();
       updateActiveTab((prev) => ({
         ...prev,
         ranges: prev.ranges.filter((r) => r.id !== id),
       }));
     },
-    [updateActiveTab]
+    [recordHistory, updateActiveTab]
   );
 
   const handleMarkIn = useCallback(() => {
@@ -1021,12 +1853,13 @@ export function App() {
       ? skimRef.current.currentSkimTime
       : playerState.time_pos;
     const t = snapKeyframes ? snapToNearestKeyframe(baseTime, keyframes, duration) : baseTime;
+    recordHistory();
     updateActiveTab((prev) => ({
       ...prev,
       draftIn: t,
       draftOut: prev.draftOut !== null && prev.draftOut <= t ? null : prev.draftOut,
     }));
-  }, [media, snapKeyframes, playerState.time_pos, keyframes, duration, updateActiveTab]);
+  }, [media, snapKeyframes, playerState.time_pos, keyframes, duration, recordHistory, updateActiveTab]);
 
   const handleMarkOut = useCallback(() => {
     if (!media) return;
@@ -1034,9 +1867,18 @@ export function App() {
       ? skimRef.current.currentSkimTime
       : playerState.time_pos;
     const t = snapKeyframes ? snapToNearestKeyframe(baseTime, keyframes, duration) : baseTime;
+    recordHistory();
     if (activeTab.draftIn !== null && t > activeTab.draftIn + 0.05) {
-      handleAddRange(activeTab.draftIn, t);
-      updateActiveTab((prev) => ({ ...prev, draftIn: null, draftOut: null }));
+      const start = activeTab.draftIn;
+      updateActiveTab((prev) => ({
+        ...prev,
+        ranges: [
+          ...prev.ranges,
+          { id: `cut_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, start, end: t },
+        ],
+        draftIn: null,
+        draftOut: null,
+      }));
     } else {
       updateActiveTab((prev) => ({ ...prev, draftOut: t }));
     }
@@ -1047,7 +1889,7 @@ export function App() {
     keyframes,
     duration,
     activeTab.draftIn,
-    handleAddRange,
+    recordHistory,
     updateActiveTab,
   ]);
 
@@ -1057,26 +1899,39 @@ export function App() {
       activeTab.draftOut !== null &&
       activeTab.draftOut > activeTab.draftIn + 0.05
     ) {
-      handleAddRange(activeTab.draftIn, activeTab.draftOut);
-      updateActiveTab((prev) => ({ ...prev, draftIn: null, draftOut: null }));
+      const start = activeTab.draftIn;
+      const end = activeTab.draftOut;
+      recordHistory();
+      updateActiveTab((prev) => ({
+        ...prev,
+        ranges: [
+          ...prev.ranges,
+          { id: `cut_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, start, end },
+        ],
+        draftIn: null,
+        draftOut: null,
+      }));
     }
-  }, [activeTab.draftIn, activeTab.draftOut, handleAddRange, updateActiveTab]);
+  }, [activeTab.draftIn, activeTab.draftOut, recordHistory, updateActiveTab]);
 
   // Audio Track Operations
   const handleUpdateAudioTrack = useCallback(
     (id: string, patch: Partial<EditableAudioTrack>) => {
+      recordHistory(patch.enabled !== undefined ? undefined : `audio-edit-${id}`);
       updateActiveTab((prev) => ({
         ...prev,
         audioTracks: prev.audioTracks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
       }));
     },
-    [updateActiveTab]
+    [recordHistory, updateActiveTab]
   );
 
   const handleMoveAudioTrack = useCallback(
     (index: number, direction: -1 | 1) => {
+      const target = index + direction;
+      if (target < 0 || target >= activeTab.audioTracks.length) return;
+      recordHistory();
       updateActiveTab((prev) => {
-        const target = index + direction;
         if (target < 0 || target >= prev.audioTracks.length) return prev;
         const copy = [...prev.audioTracks];
         const [item] = copy.splice(index, 1);
@@ -1084,25 +1939,29 @@ export function App() {
         return { ...prev, audioTracks: copy };
       });
     },
-    [updateActiveTab]
+    [activeTab.audioTracks.length, recordHistory, updateActiveTab]
   );
 
   const handleToggleAllAudioTracks = useCallback(
     (enabled: boolean) => {
+      if (activeTab.audioTracks.length === 0) return;
+      recordHistory();
       updateActiveTab((prev) => ({
         ...prev,
         audioTracks: prev.audioTracks.map((tr) => ({ ...tr, enabled })),
       }));
     },
-    [updateActiveTab]
+    [activeTab.audioTracks.length, recordHistory, updateActiveTab]
   );
 
   const handleDeleteAudioTrack = useCallback(
     (id: string) => {
       const target = activeTab.audioTracks.find((tr) => tr.id === id);
+      if (!target) return;
+      recordHistory();
       const remaining = activeTab.audioTracks.filter((tr) => tr.id !== id);
       const removedInternalIdx =
-        target && target.source_kind === 'internal' ? target.audio_index : null;
+        target.source_kind === 'internal' ? target.audio_index : null;
       updateActiveTab((prev) => ({
         ...prev,
         audioTracks: prev.audioTracks.filter((tr) => tr.id !== id),
@@ -1113,19 +1972,20 @@ export function App() {
                 (m) => !m.source_audio_indices.includes(removedInternalIdx)
               ),
       }));
-      if (target && target.source_kind === 'external' && target.mpv_aid > 0) {
+      if (target.source_kind === 'external' && target.mpv_aid > 0) {
         invoke('player_remove_audio_track', { aid: target.mpv_aid }).catch(() => {});
       }
-      if (target && target.mpv_aid === playerState.aid && remaining.length > 0) {
+      if (target.mpv_aid === playerState.aid && remaining.length > 0) {
         handleSelectPreviewAudio(remaining[0].mpv_aid);
       }
     },
-    [activeTab.audioTracks, playerState.aid, updateActiveTab, handleSelectPreviewAudio]
+    [activeTab.audioTracks, playerState.aid, recordHistory, updateActiveTab, handleSelectPreviewAudio]
   );
 
   const handleDeleteCheckedAudioTracks = useCallback(() => {
     const toRemove = activeTab.audioTracks.filter((tr) => tr.enabled);
     if (toRemove.length === 0) return;
+    recordHistory();
     const removedIds = new Set(toRemove.map((tr) => tr.id));
     const removedInternalIndices = new Set(
       toRemove.filter((tr) => tr.source_kind === 'internal').map((tr) => tr.audio_index)
@@ -1149,10 +2009,11 @@ export function App() {
     if (toRemove.some((tr) => tr.mpv_aid === playerState.aid) && remaining.length > 0) {
       handleSelectPreviewAudio(remaining[0].mpv_aid);
     }
-  }, [activeTab.audioTracks, playerState.aid, updateActiveTab, handleSelectPreviewAudio]);
+  }, [activeTab.audioTracks, playerState.aid, recordHistory, updateActiveTab, handleSelectPreviewAudio]);
 
   const handleSetDefaultAudioTrack = useCallback(
     (kind: 'original' | 'mixed', id: string) => {
+      recordHistory();
       updateActiveTab((prev) => ({
         ...prev,
         audioTracks: prev.audioTracks.map((t) => ({
@@ -1165,7 +2026,7 @@ export function App() {
         })),
       }));
     },
-    [updateActiveTab]
+    [recordHistory, updateActiveTab]
   );
 
   const handleImportAudioTrack = useCallback(async () => {
@@ -1205,6 +2066,7 @@ export function App() {
         enabled: true,
         is_default: false,
       };
+      recordHistory();
       updateActiveTab((prev) => ({
         ...prev,
         audioTracks: [...prev.audioTracks, newTrack],
@@ -1222,7 +2084,7 @@ export function App() {
         output_path: '',
       });
     }
-  }, [media, activeTab.audioTracks, t, updateActiveTab]);
+  }, [media, activeTab.audioTracks, recordHistory, t, updateActiveTab]);
 
   const handleExportSingleAudio = useCallback(
     async (track: EditableAudioTrack) => {
@@ -1361,18 +2223,20 @@ export function App() {
   // Subtitle Operations (Preview, Delay Offset, Import, Single/Batch Export)
   const handleUpdateSubtitle = useCallback(
     (id: string, patch: Partial<EditableSubtitleTrack>) => {
+      recordHistory(patch.enabled !== undefined ? undefined : `sub-edit-${id}`);
       updateActiveTab((prev) => ({
         ...prev,
         subtitleTracks: prev.subtitleTracks.map((s) => (s.id === id ? { ...s, ...patch } : s)),
       }));
     },
-    [updateActiveTab]
+    [recordHistory, updateActiveTab]
   );
 
   const handleSetSubtitleDelay = useCallback(
     (id: string, delaySec: number) => {
       const clamped = Math.max(-3600, Math.min(3600, delaySec));
       const targetSub = activeTab.subtitleTracks.find((s) => s.id === id);
+      recordHistory(`sub-delay-${id}`);
       updateActiveTab((prev) => ({
         ...prev,
         subtitleTracks: prev.subtitleTracks.map((s) =>
@@ -1384,49 +2248,55 @@ export function App() {
         invoke('player_set_sub_delay', { seconds: clamped }).catch(() => {});
       }
     },
-    [activeTab.subtitleTracks, playerState.sid, updateActiveTab]
+    [activeTab.subtitleTracks, playerState.sid, recordHistory, updateActiveTab]
   );
 
   const handleSetDefaultSubtitle = useCallback(
     (id: string) => {
+      recordHistory();
       updateActiveTab((prev) => ({
         ...prev,
         subtitleTracks: prev.subtitleTracks.map((s) => ({ ...s, is_default: s.id === id })),
       }));
     },
-    [updateActiveTab]
+    [recordHistory, updateActiveTab]
   );
 
   const handleToggleAllSubtitles = useCallback(
     (enabled: boolean) => {
+      if (activeTab.subtitleTracks.length === 0) return;
+      recordHistory();
       updateActiveTab((prev) => ({
         ...prev,
         subtitleTracks: prev.subtitleTracks.map((s) => ({ ...s, enabled })),
       }));
     },
-    [updateActiveTab]
+    [activeTab.subtitleTracks.length, recordHistory, updateActiveTab]
   );
 
   const handleDeleteSubtitle = useCallback(
     (id: string) => {
       const target = activeTab.subtitleTracks.find((s) => s.id === id);
+      if (!target) return;
+      recordHistory();
       updateActiveTab((prev) => ({
         ...prev,
         subtitleTracks: prev.subtitleTracks.filter((s) => s.id !== id),
       }));
-      if (target && target.source_kind === 'external' && target.mpv_sid > 0) {
+      if (target.source_kind === 'external' && target.mpv_sid > 0) {
         invoke('player_remove_subtitle_track', { sid: target.mpv_sid }).catch(() => {});
       }
-      if (target && target.mpv_sid === playerState.sid) {
+      if (target.mpv_sid === playerState.sid) {
         handleSelectPreviewSubtitle(0);
       }
     },
-    [activeTab.subtitleTracks, playerState.sid, updateActiveTab, handleSelectPreviewSubtitle]
+    [activeTab.subtitleTracks, playerState.sid, recordHistory, updateActiveTab, handleSelectPreviewSubtitle]
   );
 
   const handleDeleteCheckedSubtitles = useCallback(() => {
     const toRemove = activeTab.subtitleTracks.filter((s) => s.enabled);
     if (toRemove.length === 0) return;
+    recordHistory();
     const removedIds = new Set(toRemove.map((s) => s.id));
     updateActiveTab((prev) => ({
       ...prev,
@@ -1440,7 +2310,7 @@ export function App() {
     if (toRemove.some((s) => s.mpv_sid === playerState.sid)) {
       handleSelectPreviewSubtitle(0);
     }
-  }, [activeTab.subtitleTracks, playerState.sid, updateActiveTab, handleSelectPreviewSubtitle]);
+  }, [activeTab.subtitleTracks, playerState.sid, recordHistory, updateActiveTab, handleSelectPreviewSubtitle]);
 
   const handleImportSubtitle = useCallback(async () => {
     if (!media) return;
@@ -1498,6 +2368,7 @@ export function App() {
     }
 
     if (added.length > 0) {
+      recordHistory();
       const lastSid = added[added.length - 1].mpv_sid;
       updateActiveTab((prev) => ({
         ...prev,
@@ -1506,7 +2377,7 @@ export function App() {
       }));
       invoke('player_set_sub_delay', { seconds: 0 }).catch(() => {});
     }
-  }, [media, activeTab.subtitleTracks, t, updateActiveTab]);
+  }, [media, activeTab.subtitleTracks, recordHistory, t, updateActiveTab]);
 
   const handleExportSingleSubtitle = useCallback(
     async (sub: EditableSubtitleTrack) => {
@@ -1650,15 +2521,54 @@ export function App() {
     }
   }, [media, activeTab.subtitleTracks, activeTab.outputDir, duration, t]);
 
-  // Global Keyboard Shortcuts (including fallback Ctrl/Cmd+W, T, 1..9 & Ctrl+Tab for Windows/WebView)
+  // Global Keyboard Shortcuts (including fallback Ctrl/Cmd+Z, Y, S, O, W, T, 1..9 & Ctrl+Tab)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'w') {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const keyLower = e.key.toLowerCase();
+
+      // Global Undo / Redo (Cmd+Z / Cmd+Shift+Z / Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y)
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && keyLower === 'z') {
+        if (tag === 'TEXTAREA') return;
+        e.preventDefault();
+        const now = performance.now();
+        if (now - lastUndoRedoAtRef.current < 40) return;
+        lastUndoRedoAtRef.current = now;
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+        return;
+      }
+      if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && keyLower === 'y') {
+        if (tag === 'TEXTAREA') return;
+        e.preventDefault();
+        const now = performance.now();
+        if (now - lastUndoRedoAtRef.current < 40) return;
+        lastUndoRedoAtRef.current = now;
+        handleRedo();
+        return;
+      }
+
+      // Project shortcuts (Cmd/Ctrl+S, Cmd/Ctrl+Shift+S, Cmd/Ctrl+Shift+O)
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && keyLower === 's') {
+        e.preventDefault();
+        void handleSaveProject(e.shiftKey);
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.shiftKey && keyLower === 'o') {
+        e.preventDefault();
+        void handleOpenProject();
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && keyLower === 'w') {
         e.preventDefault();
         handleCloseTab(activeTabIdRef.current);
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 't') {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && keyLower === 't') {
         e.preventDefault();
         handleNewTab();
         return;
@@ -1680,9 +2590,12 @@ export function App() {
         return;
       }
 
-      const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
+      if (e.key === 'Escape' && pendingProject) {
+        handleCancelMissingMedia();
+        return;
+      }
       if (e.key === 'Escape' && showDetails) {
         setShowDetails(false);
         return;
@@ -1694,13 +2607,13 @@ export function App() {
         return;
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o') {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && keyLower === 'o') {
         e.preventDefault();
         handleImportVideo();
         return;
       }
 
-      if (!media || showDetails || showUpdateModal) return;
+      if (!media || showDetails || showUpdateModal || pendingProject) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -1723,13 +2636,13 @@ export function App() {
       } else if (e.key === '.') {
         e.preventDefault();
         handleStepFrame(true);
-      } else if (e.key.toLowerCase() === 'i') {
+      } else if (keyLower === 'i') {
         e.preventDefault();
         handleMarkIn();
-      } else if (e.key.toLowerCase() === 'o') {
+      } else if (keyLower === 'o') {
         e.preventDefault();
         handleMarkOut();
-      } else if (e.key.toLowerCase() === 's' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      } else if (keyLower === 's' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         handleToggleSkimming();
       }
@@ -1741,7 +2654,13 @@ export function App() {
     media,
     showDetails,
     showUpdateModal,
+    pendingProject,
     updateProgress?.stage,
+    handleUndo,
+    handleRedo,
+    handleSaveProject,
+    handleOpenProject,
+    handleCancelMissingMedia,
     handleCloseTab,
     handleNewTab,
     handleSelectTabByIndex,
@@ -1925,6 +2844,7 @@ export function App() {
   ]);
 
   const canExport = Boolean(media && keptSegments.length > 0);
+  const isBusyWorkspace = isExporting || isLoadingProject;
 
   return (
     <div className="w-full h-full flex flex-col bg-[#090b10] text-zinc-100 overflow-hidden">
@@ -1932,7 +2852,7 @@ export function App() {
       <TabBar
         tabs={tabs}
         activeTabId={effectiveActiveTabId}
-        disabled={isExporting}
+        disabled={isBusyWorkspace}
         onSelectTab={handleSelectTab}
         onCloseTab={handleCloseTab}
         onNewTab={handleNewTab}
@@ -1943,9 +2863,12 @@ export function App() {
         toolStatus={toolStatus}
         outputDir={activeTab.outputDir}
         exportFormat={activeTab.exportFormat}
-        isExporting={isExporting}
+        isExporting={isBusyWorkspace}
         isAnalyzing={activeTab.isAnalyzing}
         canExport={canExport}
+        canUndo={historyCounts.past > 0}
+        canRedo={historyCounts.future > 0}
+        currentProjectName={currentProjectName}
         hasUpdateAvailable={Boolean(updateCheckResult?.has_update)}
         latestVersion={updateCheckResult?.latest_version ?? null}
         isUpdatingApp={
@@ -1954,6 +2877,11 @@ export function App() {
           updateProgress?.stage === 'installing' ||
           updateProgress?.stage === 'restarting'
         }
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onSaveProject={() => void handleSaveProject(false)}
+        onSaveProjectAs={() => void handleSaveProject(true)}
+        onOpenProject={() => void handleOpenProject()}
         onOpenUpdateModal={() => {
           setShowUpdateModal(true);
           if (!updateCheckResult && !isCheckingUpdate) {
@@ -1964,9 +2892,11 @@ export function App() {
         onCloseVideo={handleCloseVideoInTab}
         onOpenDetails={() => setShowDetails(true)}
         onPickOutputDir={handlePickOutputDir}
-        onExportFormatChange={(fmt) =>
-          updateActiveTab((prev) => ({ ...prev, exportFormat: fmt }))
-        }
+        onExportFormatChange={(fmt) => {
+          if (fmt === activeTab.exportFormat) return;
+          recordHistory();
+          updateActiveTab((prev) => ({ ...prev, exportFormat: fmt }));
+        }}
         onStartExport={handleStartExport}
       />
 
@@ -1977,7 +2907,9 @@ export function App() {
           <VideoViewport
             media={media}
             isNativeReady={isNativeReady}
-            hideNativeView={showDetails || needsLanguageSetup || showUpdateModal}
+            hideNativeView={
+              showDetails || needsLanguageSetup || showUpdateModal || Boolean(pendingProject)
+            }
             errorMsg={activeTab.playerError}
             onImportVideo={handleImportVideo}
             onTogglePause={handleTogglePause}
@@ -2073,14 +3005,20 @@ export function App() {
                 ranges={activeTab.ranges}
                 keptSegments={keptSegments}
                 snapKeyframes={snapKeyframes}
-                onCutModeChange={(mode) =>
-                  updateActiveTab((prev) => ({ ...prev, cutMode: mode }))
-                }
+                onCutModeChange={(mode) => {
+                  if (mode === activeTab.cutMode) return;
+                  recordHistory();
+                  updateActiveTab((prev) => ({ ...prev, cutMode: mode }));
+                }}
                 onAddRange={handleAddRange}
                 onAddBatchRanges={handleAddBatchRanges}
                 onUpdateRange={handleUpdateRange}
                 onDeleteRange={handleDeleteRange}
-                onClearRanges={() => updateActiveTab((prev) => ({ ...prev, ranges: [] }))}
+                onClearRanges={() => {
+                  if (activeTab.ranges.length === 0) return;
+                  recordHistory();
+                  updateActiveTab((prev) => ({ ...prev, ranges: [] }));
+                }}
                 onSeek={handleSeek}
               />
             ) : activeTab.activePanelTab === 'audio' ? (
@@ -2089,7 +3027,7 @@ export function App() {
                 tracks={activeTab.audioTracks}
                 mixedTracks={activeTab.mixedTracks}
                 activePreviewAid={playerState.aid}
-                isBusy={isExporting}
+                isBusy={isBusyWorkspace}
                 onPreviewTrack={handleSelectPreviewAudio}
                 onUpdateTrack={handleUpdateAudioTrack}
                 onToggleAllTracks={handleToggleAllAudioTracks}
@@ -2100,33 +3038,36 @@ export function App() {
                 onImportAudioTrack={handleImportAudioTrack}
                 onExportSingleAudio={handleExportSingleAudio}
                 onExportBatchAudio={handleExportBatchAudio}
-                onAddMixedTrack={(mix) =>
+                onAddMixedTrack={(mix) => {
+                  recordHistory();
                   updateActiveTab((prev) => ({
                     ...prev,
                     mixedTracks: [...prev.mixedTracks, mix],
-                  }))
-                }
-                onUpdateMixedTrack={(id, patch) =>
+                  }));
+                }}
+                onUpdateMixedTrack={(id, patch) => {
+                  recordHistory(patch.enabled !== undefined ? undefined : `mix-edit-${id}`);
                   updateActiveTab((prev) => ({
                     ...prev,
                     mixedTracks: prev.mixedTracks.map((m) =>
                       m.id === id ? { ...m, ...patch } : m
                     ),
-                  }))
-                }
-                onDeleteMixedTrack={(id) =>
+                  }));
+                }}
+                onDeleteMixedTrack={(id) => {
+                  recordHistory();
                   updateActiveTab((prev) => ({
                     ...prev,
                     mixedTracks: prev.mixedTracks.filter((m) => m.id !== id),
-                  }))
-                }
+                  }));
+                }}
               />
             ) : (
               <SubtitlePanel
                 hasMedia={Boolean(media)}
                 subtitles={activeTab.subtitleTracks}
                 activePreviewSid={playerState.sid}
-                isBusy={isExporting}
+                isBusy={isBusyWorkspace}
                 onPreviewSubtitle={handleSelectPreviewSubtitle}
                 onUpdateSubtitle={handleUpdateSubtitle}
                 onToggleAllSubtitles={handleToggleAllSubtitles}
@@ -2155,9 +3096,10 @@ export function App() {
         draftOut={activeTab.draftOut}
         smartCut={activeTab.smartCut}
         skimmingEnabled={skimmingEnabled}
-        onToggleSmartCut={() =>
-          updateActiveTab((prev) => ({ ...prev, smartCut: !prev.smartCut }))
-        }
+        onToggleSmartCut={() => {
+          recordHistory();
+          updateActiveTab((prev) => ({ ...prev, smartCut: !prev.smartCut }));
+        }}
         onToggleSkimming={handleToggleSkimming}
         onSkimMove={handleSkimMove}
         onSkimEnd={handleSkimEnd}
@@ -2233,6 +3175,17 @@ export function App() {
         onCheckNow={() => void handleCheckUpdate(false)}
         onInstallNow={() => void handleInstallUpdate()}
         onCancelInstall={handleCancelUpdate}
+      />
+
+      {/* Missing Media Relink Modal when opening a .hdrcut project with moved/deleted source files */}
+      <MissingMediaModal
+        open={Boolean(pendingProject) && missingMediaItems.length > 0}
+        projectName={pendingProject?.name || ''}
+        items={missingMediaItems}
+        onLocateItem={(key) => void handleLocateMissingMedia(key)}
+        onToggleSkipItem={handleToggleSkipMissingMedia}
+        onCancel={handleCancelMissingMedia}
+        onConfirm={() => void handleConfirmMissingMedia()}
       />
 
       {/* First-Launch Language Selection Modal (English / 简体中文) */}

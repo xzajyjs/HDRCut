@@ -226,3 +226,70 @@ export interface ExportProgressEvent {
   message: string;
   output_path: string;
 }
+
+export interface SavedProjectAudioTrack {
+  source_kind: 'internal' | 'external';
+  audio_index: number;
+  file_path?: string;
+  file_name?: string;
+  title: string;
+  language: string;
+  enabled: boolean;
+  is_default: boolean;
+}
+
+export interface SavedProjectSubtitleTrack {
+  source_kind: 'internal' | 'external';
+  subtitle_index?: number;
+  file_path?: string;
+  file_name?: string;
+  title: string;
+  language: string;
+  enabled: boolean;
+  is_default: boolean;
+  delay_sec: number;
+}
+
+export interface SavedProjectTab {
+  video_path: string | null;
+  video_name: string | null;
+  playback_time: number;
+  volume: number;
+  speed: number;
+  hdr_passthrough: boolean;
+  active_audio_aid: number;
+  active_subtitle_sid: number;
+  active_panel_tab: 'cut' | 'audio' | 'subtitle';
+  cut_mode: CutMode;
+  ranges: CutRange[];
+  draft_in: number | null;
+  draft_out: number | null;
+  smart_cut: boolean;
+  audio_tracks: SavedProjectAudioTrack[];
+  mixed_tracks: MixedAudioTrackConfig[];
+  subtitle_tracks: SavedProjectSubtitleTrack[];
+  output_dir: string;
+  export_format: 'mkv' | 'mp4';
+}
+
+export interface HDRCutProjectFile {
+  format: 'hdrcut-project';
+  schema_version: 1;
+  app_version: string;
+  saved_at: string;
+  name: string;
+  active_tab_index: number;
+  tabs: SavedProjectTab[];
+}
+
+export interface MissingMediaItem {
+  key: string;
+  tabIndex: number;
+  tabLabel: string;
+  kind: 'video' | 'audio' | 'subtitle';
+  trackIndex?: number;
+  originalPath: string;
+  fileName: string;
+  relinkedPath: string | null;
+  skipped: boolean;
+}

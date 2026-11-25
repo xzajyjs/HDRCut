@@ -7,6 +7,30 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.6.0] - 2026-11-25
+
+### English
+- **Global Undo / Redo Across the Entire Workspace**:
+  - Added multi-step (up to 80 steps) global undo & redo covering cut ranges, In/Out markers, cut mode, Smart Cut toggle, audio track edits/reordering/deletion/import/mixing, subtitle edits/delay offsets/deletion/import, tab creation/closing, video loading/closing, output directory, and project loads.
+  - Rapid consecutive edits on the same control (such as typing a track title, dragging a timeline cut handle, or nudging subtitle delay) intelligently coalesce into a single clean undo step, while keeping your current playback frame anchored on the same video.
+  - Supports native keyboard shortcuts (`⌘Z` / `⌘⇧Z` on macOS, `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y` on Windows) as well as Undo/Redo toolbar buttons in the top bar.
+- **Project Save, Export & Import (`.hdrcut`) with Missing Source File Relinking**:
+  - Save, Export (Save As), and Open/Import `.hdrcut` project files via the new **Project** menu in the top bar, native File menu shortcuts (`⌘S` / `⌘⇧S` / `⌘⇧O`), or by dragging & dropping a `.hdrcut` file directly onto the window.
+  - Preserves all open tabs and every source asset reference (source videos, external audio tracks, external subtitle files), along with cut ranges, track edits/ordering/default flags, subtitle delay offsets, audio mixes, playback positions, and export settings.
+  - **Missing Media Detection & Smart Relinking**: When reopening a project whose source videos, external audio tracks, or external subtitle files have been moved, renamed, or deleted, HDRCut pops up a dedicated **Missing Media Relink** modal prompting you to locate new paths for each missing file (locating any one file automatically scans the same folder to auto-relink other missing files) or skip individual items to continue loading.
+
+### 中文
+- **全局撤销 / 重做（Global Undo / Redo）**：
+  - 支持全局多步（最多 80 步）撤销与重做，完整覆盖剪辑区间增删改、入点/出点标记、剪掉/保留模式与智能剪辑切换、音轨编辑/排序/删除/导入/混音、字幕编辑/时间偏移/删除/导入、标签页新建与关闭、视频加载与关闭、输出目录及项目加载等全部编辑操作。
+  - 同一控件的连续高频修改（如输入轨道名称、拖动时间轴裁切手柄、连续微调字幕偏移）会自动智能合并为单步撤销记录，且同视频下撤销/重做不会打断当前预览帧位置。
+  - 支持全局原生快捷键（macOS：`⌘Z` 撤销 / `⌘⇧Z` 重做；Windows：`Ctrl+Z` 撤销 / `Ctrl+Shift+Z` 或 `Ctrl+Y` 重做）及顶部栏撤销/重做快捷按钮。
+- **项目管理（`.hdrcut` 保存 / 导出 / 导入）与缺失源文件重定位**：
+  - 顶部栏新增「项目」下拉菜单，支持保存项目（`⌘S`）、导出/另存为项目（`⌘⇧S`）、打开/导入项目（`⌘⇧O`），亦支持直接将 `.hdrcut` 项目文件拖入窗口打开。
+  - 完整保存当前所有打开的标签页及全部源文件引用（源视频、外挂音轨、外挂字幕）与剪辑区间、轨道属性/排序/默认标记、字幕偏移、混音配置、播放进度及导出格式设置。
+  - **缺失源文件自动检测与弹窗重定位**：重新打开项目时若检测到任何源视频、外挂音轨或外挂字幕已移动、重命名或删除，将自动弹出「源文件重新定位」提醒弹窗，引导逐一选择新路径（定位同一文件夹内的任一文件会自动扫描该目录并批量匹配其余缺失源文件），也支持跳过个别缺失项继续加载项目。
+
+---
+
 ## [1.5.2] - 2026-11-25
 
 ### English
