@@ -4,11 +4,11 @@
 
 # HDRCut
 
-**Lossless HDR video cutting that keeps every bit.**
+**Lossless SDR & HDR video cutting that keeps every bit.**
 
-Cross-platform desktop workstation for 100GB+ 4K HDR videos. Native `libmpv` hardware-decoded
-preview, frame-accurate Smart Cut, multi-track lossless audio mixing, subtitle workstation, and
-isolated multi-tab editing — built with Tauri v2, Rust, and FFmpeg.
+Cross-platform desktop workstation for standard **SDR** and 100GB+ 4K **HDR** videos. Native
+`libmpv` hardware-decoded preview, frame-accurate Smart Cut, multi-track lossless audio mixing,
+subtitle workstation, and isolated multi-tab editing — built with Tauri v2, Rust, and FFmpeg.
 
 [![Release](https://img.shields.io/github/v/release/xzajyjs/HDRCut?label=release&color=06b6d4)](https://github.com/xzajyjs/HDRCut/releases)
 [![License](https://img.shields.io/github/license/xzajyjs/HDRCut?color=06b6d4)](LICENSE)
@@ -24,15 +24,16 @@ isolated multi-tab editing — built with Tauri v2, Rust, and FFmpeg.
 
 ---
 
-HDRCut is a desktop video cutter and track workstation engineered specifically for massive
-**4K HDR10 / HLG / Dolby Vision** recordings (MKV / MP4 / MOV). Instead of forcing full
-re-encoding or losing sync on 10-second keyframe intervals, HDRCut indexes 100GB+ files in
-seconds, renders true HDR directly via embedded `libmpv`, and exports frame-accurate cuts in a
-single streaming pass.
+HDRCut is a desktop video cutter and track workstation engineered for both everyday **SDR**
+clips and massive **4K HDR (HDR10 / HLG / Dolby Vision)** recordings (MKV / MP4 / MOV). Instead
+of forcing full re-encoding or losing sync on 10-second keyframe intervals, HDRCut indexes
+100GB+ files in seconds, renders true SDR & HDR directly via embedded `libmpv`, and exports
+frame-accurate cuts in a single streaming pass.
 
-- **True HDR hardware preview.** Embedded `libmpv` with 64-bit float `CAOpenGLLayer` EDR
-  passthrough on macOS Apple Silicon and native `HWND` / D3D11 `gpu-next` on Windows x64 — zero
-  proxy generation required.
+- **Full SDR & HDR hardware preview.** Works seamlessly with standard 8-bit SDR as well as
+  10-bit HDR10 / HLG / Dolby Vision — embedded `libmpv` with 64-bit float `CAOpenGLLayer` EDR
+  passthrough on macOS Apple Silicon and native `HWND` / D3D11 `gpu-next` on Windows x64, with
+  zero proxy generation required.
 - **Smart Cut & zero-reencode lossless export.** Cut at any frame: only the tiny boundary GOP
   (a few seconds) at non-keyframe cut points is locally re-encoded to match source codec/HDR
   metadata, while 99%+ of the video streams directly with `-c:v copy`. Or toggle pure

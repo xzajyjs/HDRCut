@@ -4,11 +4,11 @@
 
 # HDRCut
 
-**每一比特都不妥协的无损 HDR 视频剪辑工作站。**
+**每一比特都不妥协的无损 SDR / HDR 视频剪辑工作站。**
 
-专为 100GB+ 4K HDR 大文件打造的跨平台桌面端视频剪辑与音轨/字幕工具。基于 Tauri v2、Rust、
-原生内嵌 `libmpv` 硬解引擎与 `FFmpeg` 构建，支持真 HDR 流畅预览、智能帧精确剪辑（Smart Cut）、
-多音轨无损混音、多字幕管理偏移与多标签页独立工作区。
+同时支持常规 **SDR** 与 100GB+ 4K **HDR** 视频的跨平台桌面端剪辑与音轨/字幕工具。基于 Tauri v2、
+Rust、原生内嵌 `libmpv` 硬解引擎与 `FFmpeg` 构建，支持真 HDR / SDR 流畅预览、智能帧精确剪辑
+（Smart Cut）、多音轨无损混音、多字幕管理偏移与多标签页独立工作区。
 
 [![Release](https://img.shields.io/github/v/release/xzajyjs/HDRCut?label=release&color=06b6d4)](https://github.com/xzajyjs/HDRCut/releases)
 [![License](https://img.shields.io/github/license/xzajyjs/HDRCut?color=06b6d4)](LICENSE)
@@ -24,13 +24,13 @@
 
 ---
 
-HDRCut 面向超大容量 **4K HDR10 / HLG / Dolby Vision** 视频文件（MKV / MP4 / MOV）而设计。
-无需全片重编码，也不用忍受 10 秒关键帧间隔带来的剪辑误差：秒级索引百 GB 视频关键帧、
-原生硬解直出真 HDR 画面，并通过单遍流拷贝直接导出帧精确成片。
+HDRCut 同时面向日常 **SDR** 视频与超大容量 **4K HDR（HDR10 / HLG / Dolby Vision）** 视频
+（MKV / MP4 / MOV）而设计。无需全片重编码，也不用忍受 10 秒关键帧间隔带来的剪辑误差：秒级索引
+百 GB 视频关键帧、原生硬解直出准确 SDR / HDR 画面，并通过单遍流拷贝直接导出帧精确成片。
 
-- **真 HDR 原生硬解预览**：macOS Apple Silicon 采用内嵌 `libmpv` + 64-bit float
-  `CAOpenGLLayer` EDR 直通渲染；Windows x64 采用原生子窗口 `HWND` + D3D11 `gpu-next`
-  硬件加速，百 GB 原盘秒开不卡顿。
+- **SDR / HDR 全格式原生硬解预览**：同时完美支持常规 8-bit SDR 与 10-bit HDR10 / HLG /
+  Dolby Vision —— macOS Apple Silicon 采用内嵌 `libmpv` + 64-bit float `CAOpenGLLayer`
+  EDR 直通渲染；Windows x64 采用原生子窗口 `HWND` + D3D11 `gpu-next` 硬件加速，大文件秒开不卡顿。
 - **Smart Cut 智能帧精确剪辑与零重编码导出**：支持任意帧精确切点，仅对非关键帧切点处
   1 个极短边界 GOP 匹配原片编码与 HDR 元数据局部重编码，其余 99%+ 画面保持 `-c:v copy`
   单遍直出；也可一键切换「仅关键帧 · 0 重编码」模式。
