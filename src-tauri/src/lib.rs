@@ -186,8 +186,13 @@ async fn player_set_subtitle_track(state: State<'_, AppState>, sid: i64) -> Resu
 async fn player_add_subtitle_file(
     state: State<'_, AppState>,
     file_path: String,
-) -> Result<(), String> {
+) -> Result<i64, String> {
     state.player.add_subtitle_file(&file_path)
+}
+
+#[tauri::command]
+async fn player_remove_subtitle_track(state: State<'_, AppState>, sid: i64) -> Result<(), String> {
+    state.player.remove_subtitle_track(sid)
 }
 
 #[tauri::command]
@@ -199,8 +204,13 @@ async fn player_set_sub_delay(state: State<'_, AppState>, seconds: f64) -> Resul
 async fn player_add_audio_file(
     state: State<'_, AppState>,
     file_path: String,
-) -> Result<(), String> {
+) -> Result<i64, String> {
     state.player.add_audio_file(&file_path)
+}
+
+#[tauri::command]
+async fn player_remove_audio_track(state: State<'_, AppState>, aid: i64) -> Result<(), String> {
+    state.player.remove_audio_track(aid)
 }
 
 #[tauri::command]
@@ -311,8 +321,10 @@ pub fn run() {
             player_set_audio_track,
             player_set_subtitle_track,
             player_add_subtitle_file,
+            player_remove_subtitle_track,
             player_set_sub_delay,
             player_add_audio_file,
+            player_remove_audio_track,
             player_set_volume,
             player_set_speed,
             player_set_hdr,

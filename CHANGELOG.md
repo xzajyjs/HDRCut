@@ -7,6 +7,20 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.5.2] - 2026-11-25
+
+### English
+- **Fix External Subtitle & Audio Preview Track Mismatch**:
+  - Disabled `libmpv` automatic folder scanning (`sub-auto=no`, `audio-file-auto=no`) so stray subtitle/audio files in the video directory never shift track IDs behind the scenes.
+  - Switched external `sub-add` / `audio-add` to synchronous `libmpv` commands that return the exact assigned track ID (`sid` / `aid`), sync track removal via `sub-remove` / `audio-remove` when deleting tracks, and re-bind exact IDs after `file-loaded` on tab switch.
+
+### 中文
+- **修复导入外部字幕/音轨后预览语言错位问题**：
+  - 禁用 `libmpv` 默认自动扫描同目录字幕/音频文件（`sub-auto=no`、`audio-file-auto=no`），彻底避免同目录残留字幕文件偷偷占位导致轨道序号偏移。
+  - 将外挂字幕/音轨挂载改为同步顺序执行并直接读取 `libmpv` 实际分配的轨道 ID（`sid` / `aid`），删除外挂轨时同步调用 `sub-remove` / `audio-remove` 清理，切换标签页时等待文件加载完成后重新精确绑定轨道 ID。
+
+---
+
 ## [1.5.1] - 2026-11-25
 
 ### English

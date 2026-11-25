@@ -417,6 +417,20 @@ impl LibMpv {
         if rc >= 0 { Some(val != 0) } else { None }
     }
 
+    pub fn get_prop_i64(&self, ctx: MpvHandle, name: &str) -> Option<i64> {
+        let c_name = CString::new(name).ok()?;
+        let mut val: i64 = 0;
+        let rc = unsafe {
+            (self.get_property)(
+                ctx,
+                c_name.as_ptr(),
+                MPV_FORMAT_INT64,
+                (&mut val as *mut i64).cast::<c_void>(),
+            )
+        };
+        if rc >= 0 { Some(val) } else { None }
+    }
+
     pub fn run_command(&self, ctx: MpvHandle, args: &[&str]) -> Result<(), String> {
         let c_args: Vec<CString> = args
             .iter()

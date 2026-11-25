@@ -125,7 +125,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.5.2';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 
 function loadAutoUpdatePref(): boolean {
@@ -361,23 +361,53 @@ export function App() {
         startPaused: true,
       });
 
-      // Re-attach external audio & subtitle files that belong to this tab
+      // Re-attach external audio & subtitle files and capture exact libmpv-assigned IDs
+      const newAidMap = new Map<string, number>();
       for (const extA of tab.audioTracks) {
         if (extA.source_kind === 'external' && extA.file_path) {
-          await invoke('player_add_audio_file', { filePath: extA.file_path }).catch(() => {});
+          const assignedAid = await invoke<number>('player_add_audio_file', {
+            filePath: extA.file_path,
+          }).catch(() => extA.mpv_aid);
+          newAidMap.set(extA.id, assignedAid);
         }
       }
+      const newSidMap = new Map<string, number>();
       for (const extS of tab.subtitleTracks) {
         if (extS.source_kind === 'external' && extS.file_path) {
-          await invoke('player_add_subtitle_file', { filePath: extS.file_path }).catch(() => {});
+          const assignedSid = await invoke<number>('player_add_subtitle_file', {
+            filePath: extS.file_path,
+          }).catch(() => extS.mpv_sid);
+          newSidMap.set(extS.id, assignedSid);
         }
       }
 
+      const activeAudioTrack = tab.audioTracks.find((a) => a.mpv_aid === tab.playerState.aid);
+      const restoredAid =
+        (activeAudioTrack && newAidMap.get(activeAudioTrack.id)) ?? tab.playerState.aid;
+
+      const activeSubTrack = tab.subtitleTracks.find((s) => s.mpv_sid === tab.playerState.sid);
+      const restoredSid =
+        (activeSubTrack && newSidMap.get(activeSubTrack.id)) ?? tab.playerState.sid;
+
+      if (newAidMap.size > 0 || newSidMap.size > 0) {
+        updateTab(tab.id, (prev) => ({
+          ...prev,
+          audioTracks: prev.audioTracks.map((a) =>
+            newAidMap.has(a.id) ? { ...a, mpv_aid: newAidMap.get(a.id)! } : a
+          ),
+          subtitleTracks: prev.subtitleTracks.map((s) =>
+            newSidMap.has(s.id) ? { ...s, mpv_sid: newSidMap.get(s.id)! } : s
+          ),
+          playerState: { ...prev.playerState, aid: restoredAid, sid: restoredSid },
+        }));
+      }
+
       // Restore tab's playback settings (audio track, subtitle track, sub delay, speed, volume, HDR)
-      await invoke('player_set_audio_track', { aid: tab.playerState.aid }).catch(() => {});
-      await invoke('player_set_subtitle_track', { sid: tab.playerState.sid }).catch(() => {});
-      const activeSub = tab.subtitleTracks.find((s) => s.mpv_sid === tab.playerState.sid);
-      await invoke('player_set_sub_delay', { seconds: activeSub?.delay_sec ?? 0 }).catch(() => {});
+      await invoke('player_set_audio_track', { aid: restoredAid }).catch(() => {});
+      await invoke('player_set_subtitle_track', { sid: restoredSid }).catch(() => {});
+      await invoke('player_set_sub_delay', { seconds: activeSubTrack?.delay_sec ?? 0 }).catch(
+        () => {}
+      );
       await invoke('player_set_speed', { speed: tab.playerState.speed }).catch(() => {});
       await invoke('player_set_volume', { volume: tab.playerState.volume }).catch(() => {});
       await invoke('player_set_hdr', { enabled: tab.playerState.hdr_passthrough }).catch(() => {});
@@ -1083,6 +1113,9 @@ export function App() {
                 (m) => !m.source_audio_indices.includes(removedInternalIdx)
               ),
       }));
+      if (target && target.source_kind === 'external' && target.mpv_aid > 0) {
+        invoke('player_remove_audio_track', { aid: target.mpv_aid }).catch(() => {});
+      }
       if (target && target.mpv_aid === playerState.aid && remaining.length > 0) {
         handleSelectPreviewAudio(remaining[0].mpv_aid);
       }
@@ -1108,6 +1141,11 @@ export function App() {
               (m) => !m.source_audio_indices.some((idx) => removedInternalIndices.has(idx))
             ),
     }));
+    for (const tr of toRemove) {
+      if (tr.source_kind === 'external' && tr.mpv_aid > 0) {
+        invoke('player_remove_audio_track', { aid: tr.mpv_aid }).catch(() => {});
+      }
+    }
     if (toRemove.some((tr) => tr.mpv_aid === playerState.aid) && remaining.length > 0) {
       handleSelectPreviewAudio(remaining[0].mpv_aid);
     }
@@ -1148,13 +1186,15 @@ export function App() {
       const info = await invoke<ExternalAudioInfo>('probe_external_audio_file', {
         filePath: selected,
       });
-      const nextAid = activeTab.audioTracks.reduce((mx, tr) => Math.max(mx, tr.mpv_aid), 0) + 1;
+      const assignedAid = await invoke<number>('player_add_audio_file', {
+        filePath: info.file_path,
+      });
       const newTrack: EditableAudioTrack = {
         id: `ext_a_${Date.now()}`,
         source_kind: 'external',
         audio_index: -1,
         file_path: info.file_path,
-        mpv_aid: nextAid,
+        mpv_aid: assignedAid,
         codec_name: info.codec_name,
         channel_layout: info.channel_layout,
         sample_rate: info.sample_rate,
@@ -1168,9 +1208,8 @@ export function App() {
       updateActiveTab((prev) => ({
         ...prev,
         audioTracks: [...prev.audioTracks, newTrack],
-        playerState: { ...prev.playerState, aid: nextAid },
+        playerState: { ...prev.playerState, aid: assignedAid },
       }));
-      await invoke('player_add_audio_file', { filePath: info.file_path });
     } catch (err) {
       setExportProgress({
         status: 'error',
@@ -1375,6 +1414,9 @@ export function App() {
         ...prev,
         subtitleTracks: prev.subtitleTracks.filter((s) => s.id !== id),
       }));
+      if (target && target.source_kind === 'external' && target.mpv_sid > 0) {
+        invoke('player_remove_subtitle_track', { sid: target.mpv_sid }).catch(() => {});
+      }
       if (target && target.mpv_sid === playerState.sid) {
         handleSelectPreviewSubtitle(0);
       }
@@ -1390,6 +1432,11 @@ export function App() {
       ...prev,
       subtitleTracks: prev.subtitleTracks.filter((s) => !removedIds.has(s.id)),
     }));
+    for (const s of toRemove) {
+      if (s.source_kind === 'external' && s.mpv_sid > 0) {
+        invoke('player_remove_subtitle_track', { sid: s.mpv_sid }).catch(() => {});
+      }
+    }
     if (toRemove.some((s) => s.mpv_sid === playerState.sid)) {
       handleSelectPreviewSubtitle(0);
     }
@@ -1412,20 +1459,22 @@ export function App() {
     ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     if (paths.length === 0) return;
 
-    let maxSid = activeTab.subtitleTracks.reduce((mx, s) => Math.max(mx, s.mpv_sid), 0);
     const added: EditableSubtitleTrack[] = [];
 
-    for (const p of paths) {
+    for (let i = 0; i < paths.length; i++) {
+      const p = paths[i];
       try {
         const info = await invoke<ExternalSubtitleInfo>('probe_external_subtitle_file', {
           filePath: p,
         });
-        maxSid += 1;
+        const assignedSid = await invoke<number>('player_add_subtitle_file', {
+          filePath: info.file_path,
+        });
         added.push({
-          id: `ext_s_${Date.now()}_${maxSid}`,
+          id: `ext_s_${Date.now()}_${i}_${assignedSid}`,
           source_kind: 'external',
           file_path: info.file_path,
-          mpv_sid: maxSid,
+          mpv_sid: assignedSid,
           codec_name: info.codec_name,
           codec_long_name: info.codec_name.toUpperCase(),
           language: info.language || '',
@@ -1434,7 +1483,6 @@ export function App() {
           is_default: false,
           delay_sec: 0,
         });
-        await invoke('player_add_subtitle_file', { filePath: info.file_path });
       } catch (err) {
         setExportProgress({
           status: 'error',

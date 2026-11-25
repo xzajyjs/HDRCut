@@ -1,7 +1,7 @@
 use parking_lot::Mutex;
 use serde::Serialize;
 use std::ffi::{c_int, CStr};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, WebviewWindow};
@@ -47,6 +47,7 @@ unsafe impl Sync for MpvCore {}
 pub struct MpvPlayer {
     core: Mutex<Option<MpvCore>>,
     last_state: Arc<Mutex<PlayerStateEvent>>,
+    file_loaded_seq: Arc<AtomicU64>,
 }
 
 impl Default for MpvPlayer {
@@ -70,6 +71,7 @@ impl MpvPlayer {
                 eof_reached: false,
                 hdr_passthrough: true,
             })),
+            file_loaded_seq: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -142,6 +144,7 @@ impl MpvPlayer {
             handle as usize,
             shutdown.clone(),
             self.last_state.clone(),
+            self.file_loaded_seq.clone(),
         );
 
         let mut guard = self.core.lock();
@@ -212,35 +215,47 @@ impl MpvPlayer {
         start_time: Option<f64>,
         start_paused: Option<bool>,
     ) -> Result<(), String> {
-        let guard = self.core.lock();
-        let core = guard.as_ref().ok_or("播放器尚未初始化")?;
-
-        *core.current_hdr_kind.lock() = hdr_format.map(|s| s.to_string());
-        let hdr_on = self.last_state.lock().hdr_passthrough;
-
-        #[cfg(target_os = "macos")]
+        let before_seq = self.file_loaded_seq.load(Ordering::SeqCst);
         {
-            apply_macos_hdr_profile(&core.lib, core.handle, &core.mac_renderer, window, hdr_format, hdr_on);
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = window;
-            let _ = hdr_on;
+            let guard = self.core.lock();
+            let core = guard.as_ref().ok_or("播放器尚未初始化")?;
+
+            *core.current_hdr_kind.lock() = hdr_format.map(|s| s.to_string());
+            let hdr_on = self.last_state.lock().hdr_passthrough;
+
+            #[cfg(target_os = "macos")]
+            {
+                apply_macos_hdr_profile(&core.lib, core.handle, &core.mac_renderer, window, hdr_format, hdr_on);
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = window;
+                let _ = hdr_on;
+            }
+
+            // Reset or set exact start position for seamless tab restoration
+            let start_val = match start_time {
+                Some(t) if t > 0.05 => format!("{t:.3}"),
+                _ => "none".to_string(),
+            };
+            let _ = core.lib.set_prop_str(core.handle, "start", &start_val);
+            let _ = core.lib.set_prop_f64(core.handle, "sub-delay", 0.0);
+            let _ = core
+                .lib
+                .set_prop_flag(core.handle, "pause", start_paused.unwrap_or(true));
+
+            core.lib
+                .run_command_async(core.handle, &["loadfile", path, "replace"])?;
         }
 
-        // Reset or set exact start position for seamless tab restoration
-        let start_val = match start_time {
-            Some(t) if t > 0.05 => format!("{t:.3}"),
-            _ => "none".to_string(),
-        };
-        let _ = core.lib.set_prop_str(core.handle, "start", &start_val);
-        let _ = core.lib.set_prop_f64(core.handle, "sub-delay", 0.0);
-        let _ = core
-            .lib
-            .set_prop_flag(core.handle, "pause", start_paused.unwrap_or(true));
-
-        core.lib
-            .run_command_async(core.handle, &["loadfile", path, "replace"])?;
+        // Wait briefly (without holding the lock) for MPV_EVENT_FILE_LOADED so any
+        // immediately following sub-add / audio-add commands attach deterministically.
+        for _ in 0..120 {
+            if self.file_loaded_seq.load(Ordering::SeqCst) > before_seq {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
         Ok(())
     }
 
@@ -338,11 +353,26 @@ impl MpvPlayer {
         res
     }
 
-    pub fn add_subtitle_file(&self, path: &str) -> Result<(), String> {
+    /// Synchronously adds an external subtitle file and returns the exact `sid` assigned by libmpv.
+    pub fn add_subtitle_file(&self, path: &str) -> Result<i64, String> {
         let guard = self.core.lock();
         let core = guard.as_ref().ok_or("播放器尚未初始化")?;
         core.lib
-            .run_command_async(core.handle, &["sub-add", path, "select"])
+            .run_command(core.handle, &["sub-add", path, "select"])?;
+        let assigned_sid = core.lib.get_prop_i64(core.handle, "sid").unwrap_or(0);
+        self.last_state.lock().sid = assigned_sid.max(0);
+        Ok(assigned_sid)
+    }
+
+    pub fn remove_subtitle_track(&self, sid: i64) -> Result<(), String> {
+        if sid <= 0 {
+            return Ok(());
+        }
+        let guard = self.core.lock();
+        let core = guard.as_ref().ok_or("播放器尚未初始化")?;
+        let id_str = sid.to_string();
+        let _ = core.lib.run_command(core.handle, &["sub-remove", &id_str]);
+        Ok(())
     }
 
     pub fn set_sub_delay(&self, seconds: f64) -> Result<(), String> {
@@ -351,11 +381,26 @@ impl MpvPlayer {
         core.lib.set_prop_f64(core.handle, "sub-delay", seconds)
     }
 
-    pub fn add_audio_file(&self, path: &str) -> Result<(), String> {
+    /// Synchronously adds an external audio file and returns the exact `aid` assigned by libmpv.
+    pub fn add_audio_file(&self, path: &str) -> Result<i64, String> {
         let guard = self.core.lock();
         let core = guard.as_ref().ok_or("播放器尚未初始化")?;
         core.lib
-            .run_command_async(core.handle, &["audio-add", path, "select"])
+            .run_command(core.handle, &["audio-add", path, "select"])?;
+        let assigned_aid = core.lib.get_prop_i64(core.handle, "aid").unwrap_or(1);
+        self.last_state.lock().aid = assigned_aid.max(0);
+        Ok(assigned_aid)
+    }
+
+    pub fn remove_audio_track(&self, aid: i64) -> Result<(), String> {
+        if aid <= 0 {
+            return Ok(());
+        }
+        let guard = self.core.lock();
+        let core = guard.as_ref().ok_or("播放器尚未初始化")?;
+        let id_str = aid.to_string();
+        let _ = core.lib.run_command(core.handle, &["audio-remove", &id_str]);
+        Ok(())
     }
 
     pub fn set_volume(&self, volume: f64) -> Result<(), String> {
@@ -467,6 +512,8 @@ fn init_mpv_instance_macos(lib: &LibMpv) -> Result<MpvHandle, String> {
     let _ = lib.set_option_str(handle, "input-default-bindings", "no");
     let _ = lib.set_option_str(handle, "input-vo-keyboard", "no");
     let _ = lib.set_option_str(handle, "audio-display", "no");
+    let _ = lib.set_option_str(handle, "sub-auto", "no");
+    let _ = lib.set_option_str(handle, "audio-file-auto", "no");
     let _ = lib.set_option_str(handle, "video-sync", "audio");
     let _ = lib.set_option_str(handle, "tone-mapping", "spline");
     let _ = lib.set_option_str(handle, "hdr-compute-peak", "yes");
@@ -504,6 +551,8 @@ fn init_mpv_instance_wid(lib: &LibMpv, wid: i64) -> Result<MpvHandle, String> {
     let _ = lib.set_option_str(handle, "input-vo-keyboard", "no");
     let _ = lib.set_option_str(handle, "cursor-autohide", "no");
     let _ = lib.set_option_str(handle, "audio-display", "no");
+    let _ = lib.set_option_str(handle, "sub-auto", "no");
+    let _ = lib.set_option_str(handle, "audio-file-auto", "no");
     let _ = lib.set_option_str(handle, "video-sync", "audio");
 
     let _ = lib.set_option_str(handle, "vo", "gpu-next");
@@ -535,6 +584,7 @@ fn spawn_event_loop(
     handle_addr: usize,
     shutdown: Arc<AtomicBool>,
     state: Arc<Mutex<PlayerStateEvent>>,
+    file_loaded_seq: Arc<AtomicU64>,
 ) {
     std::thread::spawn(move || {
         let handle = handle_addr as MpvHandle;
@@ -558,6 +608,7 @@ fn spawn_event_loop(
                     }
                 }
                 MPV_EVENT_FILE_LOADED => {
+                    file_loaded_seq.fetch_add(1, Ordering::SeqCst);
                     let _ = app.emit("mpv-file-loaded", ());
                     dirty = true;
                 }
