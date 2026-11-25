@@ -13,6 +13,7 @@ import {
   Download,
   FolderDown,
   FilePlus2,
+  ChevronDown,
 } from 'lucide-react';
 import type { EditableAudioTrack, MixedAudioTrackConfig } from '../types/media';
 import { formatBitrate } from '../utils/timecode';
@@ -397,15 +398,18 @@ export const AudioTrackPanel: React.FC<AudioTrackPanelProps> = ({
                     className="w-full h-7 px-2 rounded-md bg-black/50 border border-white/[0.1] focus:border-cyan-400/60 text-[11px] text-zinc-100 outline-none"
                   />
                   <div className="flex items-center justify-between gap-2">
-                    <select
-                      value={mixCodec}
-                      onChange={(e) => setMixCodec(e.target.value as 'flac' | 'pcm_s24le' | 'aac')}
-                      className="h-7 px-2 rounded-md bg-black/50 border border-white/[0.1] text-[11px] text-zinc-200 outline-none cursor-pointer"
-                    >
-                      <option value="flac">{t('audio.codecFlac')}</option>
-                      <option value="pcm_s24le">{t('audio.codecPcm')}</option>
-                      <option value="aac">{t('audio.codecAac')}</option>
-                    </select>
+                    <div className="relative flex items-center h-7 rounded-md bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-colors">
+                      <select
+                        value={mixCodec}
+                        onChange={(e) => setMixCodec(e.target.value as 'flac' | 'pcm_s24le' | 'aac')}
+                        className="appearance-none bg-transparent h-full pl-2.5 pr-6 text-[11px] font-medium text-zinc-200 outline-none cursor-pointer"
+                      >
+                        <option value="flac" className="bg-[#111520] text-zinc-100">{t('audio.codecFlac')}</option>
+                        <option value="pcm_s24le" className="bg-[#111520] text-zinc-100">{t('audio.codecPcm')}</option>
+                        <option value="aac" className="bg-[#111520] text-zinc-100">{t('audio.codecAac')}</option>
+                      </select>
+                      <ChevronDown className="w-3 h-3 text-zinc-400 pointer-events-none absolute right-1.5" />
+                    </div>
 
                     <label className="flex items-center gap-1 text-[10px] text-zinc-400 cursor-pointer">
                       <input

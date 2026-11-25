@@ -6,6 +6,7 @@ import {
   SkipForward,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Volume2,
   VolumeX,
   Scissors,
@@ -372,13 +373,13 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
       {/* Right: Preview Audio Switcher, Subtitle Switcher, HDR Toggle, Speed, Volume */}
       <div className="flex items-center gap-2">
         {audioTracks.length > 1 && (
-          <div className="flex items-center gap-1 bg-white/[0.05] border border-white/[0.07] rounded-md px-1.5 h-7">
-            <Headphones className="w-3 h-3 text-cyan-400 shrink-0" />
+          <div className="relative flex items-center bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-md h-7 transition-colors">
+            <Headphones className="w-3 h-3 text-cyan-400 shrink-0 ml-2 pointer-events-none" />
             <select
               disabled={disabled}
               value={playerState.aid}
               onChange={(e) => onSelectPreviewAudio(Number(e.target.value))}
-              className="bg-transparent text-[11px] text-zinc-200 outline-none max-w-[115px] cursor-pointer"
+              className="appearance-none bg-transparent h-full pl-1.5 pr-6 text-[11px] font-medium text-zinc-200 outline-none max-w-[132px] truncate cursor-pointer disabled:opacity-35"
               title={t('play.switchAudioTitle')}
             >
               {audioTracks.map((t) => (
@@ -387,17 +388,18 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                 </option>
               ))}
             </select>
+            <ChevronDown className="w-3 h-3 text-zinc-400 pointer-events-none absolute right-1.5" />
           </div>
         )}
 
         {subtitleTracks.length > 0 && (
-          <div className="flex items-center gap-1 bg-white/[0.05] border border-white/[0.07] rounded-md px-1.5 h-7">
-            <Subtitles className="w-3 h-3 text-sky-400 shrink-0" />
+          <div className="relative flex items-center bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-md h-7 transition-colors">
+            <Subtitles className="w-3 h-3 text-sky-400 shrink-0 ml-2 pointer-events-none" />
             <select
               disabled={disabled}
               value={playerState.sid}
               onChange={(e) => onSelectPreviewSubtitle(Number(e.target.value))}
-              className="bg-transparent text-[11px] text-zinc-200 outline-none max-w-[110px] cursor-pointer"
+              className="appearance-none bg-transparent h-full pl-1.5 pr-6 text-[11px] font-medium text-zinc-200 outline-none max-w-[136px] truncate cursor-pointer disabled:opacity-35"
               title={t('play.switchSubTitle')}
             >
               <option value={0} className="bg-[#111520] text-zinc-400">
@@ -409,6 +411,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
                 </option>
               ))}
             </select>
+            <ChevronDown className="w-3 h-3 text-zinc-400 pointer-events-none absolute right-1.5" />
           </div>
         )}
 
@@ -428,19 +431,22 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           </button>
         )}
 
-        <select
-          disabled={disabled}
-          value={playerState.speed}
-          onChange={(e) => onSetSpeed(Number(e.target.value))}
-          className="h-7 px-1.5 rounded-md bg-white/[0.05] border border-white/[0.07] text-[11px] font-mono-num text-zinc-200 outline-none cursor-pointer disabled:opacity-35"
-          title={t('play.speedTitle')}
-        >
-          {SPEEDS.map((s) => (
-            <option key={s} value={s} className="bg-[#111520] text-zinc-100">
-              {s}x
-            </option>
-          ))}
-        </select>
+        <div className="relative flex items-center bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-md h-7 transition-colors">
+          <select
+            disabled={disabled}
+            value={playerState.speed}
+            onChange={(e) => onSetSpeed(Number(e.target.value))}
+            className="appearance-none bg-transparent h-full pl-2.5 pr-6 text-[11px] font-mono-num font-medium text-zinc-200 outline-none cursor-pointer disabled:opacity-35"
+            title={t('play.speedTitle')}
+          >
+            {SPEEDS.map((s) => (
+              <option key={s} value={s} className="bg-[#111520] text-zinc-100">
+                {s}x
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-3 h-3 text-zinc-400 pointer-events-none absolute right-1.5" />
+        </div>
 
         <div className="flex items-center gap-1.5">
           <button

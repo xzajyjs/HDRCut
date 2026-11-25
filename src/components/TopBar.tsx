@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
   FolderOpen,
   Film,
@@ -105,7 +106,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight text-white">HDRCut</div>
-            <div className="text-[10px] text-zinc-500 font-medium">v1.6.3</div>
+            <div className="text-[10px] text-zinc-500 font-medium">v1.6.4</div>
           </div>
         </div>
 
@@ -208,12 +209,25 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
         </div>
 
-        {/* Project Menu (Save / Export / Import .hdrcut) */}
+        {/* Project Menu (native OS popup menu so it always floats above native libmpv video view) */}
         <div ref={projectMenuRef} className="relative">
           <button
             type="button"
             disabled={isExporting}
-            onClick={() => setProjectMenuOpen((v) => !v)}
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const stripHint = (s: string) => s.replace(/\s*\([^)]*\)\s*$/, '').trim();
+              invoke('show_project_menu', {
+                x: rect.left,
+                y: rect.bottom + 4,
+                saveLabel: stripHint(t('proj.save')),
+                saveAsLabel: stripHint(t('proj.saveAs')),
+                openLabel: stripHint(t('proj.open')),
+              }).catch(() => {
+                // Fallback HTML popover when running outside native desktop shell
+                setProjectMenuOpen((v) => !v);
+              });
+            }}
             className={`h-8 px-2.5 rounded-lg border text-[11px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40 ${
               currentProjectName
                 ? 'bg-sky-500/10 hover:bg-sky-500/20 border-sky-400/35 text-sky-200'

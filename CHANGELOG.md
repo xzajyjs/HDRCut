@@ -7,6 +7,22 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.6.4] - 2026-11-25
+
+### English
+- **Unified Dark Styling for Speed, Subtitle, Audio & Mix Dropdowns**:
+  - Removed default macOS grey native `<select>` styling across the playback bar (speed, subtitle, audio track selectors) and audio mixer codec selector using `appearance-none` + custom Lucide chevron icons so every dropdown matches the dark studio UI seamlessly.
+- **Fix Project Menu Dropdown Occluded by Video Viewport**:
+  - Switched the top-bar **Project** button dropdown to a native OS popup menu (`window.popup_menu_at`) anchored directly beneath the button, ensuring it always renders cleanly above the native hardware-accelerated `libmpv` video view with zero clipping or flicker on both macOS and Windows.
+
+### 中文
+- **统一倍速、字幕、音轨与混音编码选择框风格**：
+  - 为播放栏的倍速、字幕切换、音轨切换及混音编码 `<select>` 全面启用 `appearance-none` 自定义暗色扁平样式与统一下拉箭头图标，彻底消除 macOS 系统默认的灰底双箭头违和外观，与整体暗色工作台按钮风格保持一致。
+- **修复导入视频后「项目」下拉菜单被视频画面遮挡的 Bug**：
+  - 将顶部栏「项目」按钮的下拉菜单改为原生系统弹出菜单（`window.popup_menu_at`），精准锚定在按钮正下方，彻底解决被原生 `libmpv` 视频渲染层遮挡的问题，且无任何画面闪烁。
+
+---
+
 ## [1.6.3] - 2026-11-25
 
 ### English

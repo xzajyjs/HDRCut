@@ -309,6 +309,39 @@ fn find_file_in_dir(dir_path: String, file_name: String) -> Option<String> {
     project::find_file_in_dir(&dir_path, &file_name)
 }
 
+#[tauri::command]
+fn show_project_menu(
+    app: AppHandle,
+    window: WebviewWindow,
+    x: f64,
+    y: f64,
+    save_label: String,
+    save_as_label: String,
+    open_label: String,
+) -> Result<(), String> {
+    let save_item = MenuItemBuilder::with_id("save-project", &save_label)
+        .accelerator("CmdOrCtrl+S")
+        .build(&app)
+        .map_err(|e| e.to_string())?;
+    let save_as_item = MenuItemBuilder::with_id("save-project-as", &save_as_label)
+        .accelerator("CmdOrCtrl+Shift+S")
+        .build(&app)
+        .map_err(|e| e.to_string())?;
+    let sep = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+    let open_item = MenuItemBuilder::with_id("open-project", &open_label)
+        .accelerator("CmdOrCtrl+Shift+O")
+        .build(&app)
+        .map_err(|e| e.to_string())?;
+    let menu = MenuBuilder::new(&app)
+        .items(&[&save_item, &save_as_item, &sep, &open_item])
+        .build()
+        .map_err(|e| e.to_string())?;
+    window
+        .popup_menu_at(&menu, tauri::Position::Logical(tauri::LogicalPosition::new(x, y)))
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_state = AppState {
@@ -361,6 +394,7 @@ pub fn run() {
             load_project,
             check_files_exist,
             find_file_in_dir,
+            show_project_menu,
         ])
         .setup(|app| {
             // Build native menu so Cmd+W closes the active tab (not the entire window!),
