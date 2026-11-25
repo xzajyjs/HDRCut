@@ -1,103 +1,170 @@
+<div align="center">
+
+<img src="src-tauri/icons/app-icon.png" width="84" alt="HDRCut logo" />
+
 # HDRCut
 
-> 跨平台桌面端无损 HDR 视频剪辑、多音轨混音与字幕工作站（macOS & Windows）
+**Lossless HDR video cutting that keeps every bit.**
 
-HDRCut 基于 **Tauri v2 (Rust + React 19 + TypeScript)**、原生内嵌 **`libmpv`** 硬解渲染引擎与 **`FFmpeg`** 构建，专为 **100GB+ 4K HDR（HDR10 / HLG / Dolby Vision）大文件**打造：秒开流畅预览、智能帧精确剪辑（Smart Cut）、零重编码直出、多音轨中文重命名与无损混音、多字幕预览/偏移/封装以及多标签页独立工作区。
+Cross-platform desktop workstation for 100GB+ 4K HDR videos. Native `libmpv` hardware-decoded
+preview, frame-accurate Smart Cut, multi-track lossless audio mixing, subtitle workstation, and
+isolated multi-tab editing — built with Tauri v2, Rust, and FFmpeg.
 
----
+[![Release](https://img.shields.io/github/v/release/xzajyjs/HDRCut?label=release&color=06b6d4)](https://github.com/xzajyjs/HDRCut/releases)
+[![License](https://img.shields.io/github/license/xzajyjs/HDRCut?color=06b6d4)](LICENSE)
+[![Build & Release](https://img.shields.io/github/actions/workflow/status/xzajyjs/HDRCut/build-release.yml?branch=main&label=build)](https://github.com/xzajyjs/HDRCut/actions/workflows/build-release.yml)
+[![Platform](https://img.shields.io/badge/platform-macOS%20arm64%20%7C%20Windows%20x64-0ea5e9)](https://github.com/xzajyjs/HDRCut/releases)
+[![Tauri v2](https://img.shields.io/badge/Tauri-v2-10b981)](https://v2.tauri.app/)
 
-## 核心特性
+**English** · [简体中文](README.zh-CN.md)
 
-### 1. 真 HDR 原生硬解预览
-- **macOS (Apple Silicon)**：内嵌 `libmpv` + 64-bit float `CAOpenGLLayer` EDR 渲染，支持 HDR 直通与系统色彩管理。
-- **Windows (x64)**：原生子窗口 `HWND` + `gpu-next` / D3D11 硬件解码直出。
-- **极速索引**：纯 Rust 64 位 MKV EBML Cues / MP4 `stss` 解析器，百 GB 视频秒级加载全部关键帧。
+[Quick Start](#quick-start) · [Screenshots](#screenshots) · [How It Works](#how-it-works) · [Shortcuts](#keyboard-shortcuts) · [Development](#development) · [Changelog](CHANGELOG.md)
 
-### 2. 智能剪辑（Smart Cut）与无损导出
-- **Smart Cut（帧精确剪辑）**：允许在任意帧设置切点，仅对切点处 1 个边界 GOP（数秒）匹配源编码参数局部重编码，其余 99%+ 画面保持 `-c:v copy` 单遍直出，不生成百 GB 临时文件。
-- **仅关键帧模式**：一键切换为 100% 零重编码关键帧吸附模式。
-- **批量时间段剪辑**：支持「剔除选中区间（默认）」与「仅保留选中区间」，支持自然文本批量导入（例如 `00:01:25-00:02:10 和 00:28:12-00:50:00 和 00:59:32-末尾`）。
-- **灵活导出**：支持导出为 **MKV** 或 **MP4**，导出时自动填充 `<源文件名>-edit.<格式>` 防止误覆盖。
-
-### 3. Final Cut Pro 风格时间轴与精确控制
-- **浏览预览（Skimming）**：时间轴工具栏可一键开启（快捷键 `S`），鼠标划过时间轴即以橙色浏览线实时预览对应画面，移开后自动恢复主播放头位置与状态。
-- **分段精确时间码跳转**：点击当前播放时间即可按 `时:分:秒:帧` 逐段输入并回车跳转。
-- **PotPlayer 风格媒体详情**：顶栏实时展示文件体积、分辨率、编码/位深/帧率、码率与 HDR/SDR 状态，点击「详情」查看完整流与色彩元数据。
-
-### 4. 多音轨管理、无损混音与字幕工作站
-- **音轨**：自动分析全部内封音轨，支持实时切换试听、UTF-8 中文重命名、设默认轨、单条/批量无损导出、导入单条外部音轨，以及多条音轨无损 **FLAC** / PCM / ALAC / AAC 混音。
-- **字幕**：支持读取视频内封全部字幕并手动切换预览、单条/批量导出、导入外挂字幕，且外挂字幕支持按秒调整前后偏移量（预览与导出同步生效）。
-
-### 5. 多标签页独立工作区
-- 支持同时打开多个标签页，各自独立保存视频、剪辑区间、音轨/混音、字幕及偏移、导出格式与播放进度。
+</div>
 
 ---
 
-## 快捷键一览
+HDRCut is a desktop video cutter and track workstation engineered specifically for massive
+**4K HDR10 / HLG / Dolby Vision** recordings (MKV / MP4 / MOV). Instead of forcing full
+re-encoding or losing sync on 10-second keyframe intervals, HDRCut indexes 100GB+ files in
+seconds, renders true HDR directly via embedded `libmpv`, and exports frame-accurate cuts in a
+single streaming pass.
 
-| 快捷键 | 功能 |
+- **True HDR hardware preview.** Embedded `libmpv` with 64-bit float `CAOpenGLLayer` EDR
+  passthrough on macOS Apple Silicon and native `HWND` / D3D11 `gpu-next` on Windows x64 — zero
+  proxy generation required.
+- **Smart Cut & zero-reencode lossless export.** Cut at any frame: only the tiny boundary GOP
+  (a few seconds) at non-keyframe cut points is locally re-encoded to match source codec/HDR
+  metadata, while 99%+ of the video streams directly with `-c:v copy`. Or toggle pure
+  **Keyframe-Only** mode for 100% zero re-encoding.
+- **Final Cut Pro–style timeline skimming.** Toggle live hover skimming (`S`) to preview frames
+  under your cursor with an orange skimmer line while keeping the main playhead anchored, plus
+  batch time-range import and `HH:MM:SS:FF` segmented jump input.
+- **Complete audio & subtitle workstation.** Live track auditioning, UTF-8 renaming, multi-track
+  lossless **FLAC** / PCM / ALAC / AAC mixing, single/batch track extraction, external audio &
+  subtitle import, and live + exported subtitle time-offset adjustment.
+- **Isolated multi-tab workspace.** Open multiple videos side-by-side in independent tabs
+  (`⌘T` / `⌘W` / `⌘1`–`⌘9`), each preserving its own cut ranges, tracks, subtitle offsets,
+  playback position, and export settings.
+
+---
+
+## Screenshots
+
+| HDR10 Smart Cut & Timeline Skimming | Multi-Tab & Audio Track Manager |
+| :---: | :---: |
+| ![HDR10 Smart Cut & Timeline Skimming](docs/screenshots/smart-cut-skimming.jpg) | ![Multi-Tab & Audio Track Manager](docs/screenshots/audio-tracks.jpg) |
+
+| Multi-Track Subtitle Preview & Batch Export | PotPlayer-Style Media Details Inspector |
+| :---: | :---: |
+| ![Multi-Track Subtitle Preview & Batch Export](docs/screenshots/subtitle-manager.jpg) | ![PotPlayer-Style Media Details Inspector](docs/screenshots/media-details.jpg) |
+
+---
+
+## Quick Start
+
+Download the latest self-contained build from **[GitHub Releases](https://github.com/xzajyjs/HDRCut/releases)** — `libmpv`, `ffmpeg`, and `ffprobe` are already bundled inside:
+
+- **macOS (Apple Silicon `arm64`)**: `HDRCut-<version>-macos-arm64.dmg`
+  - Drag `HDRCut.app` into `Applications`.
+  - Since builds are ad-hoc signed, if macOS Gatekeeper warns on first launch, run:
+    ```bash
+    xattr -cr /Applications/HDRCut.app
+    ```
+- **Windows (`x64` Portable)**: `HDRCut-<version>-windows-x64-portable.zip`
+  - Unzip to any folder and double-click `HDRCut.exe` (uses the built-in Windows 10/11 Edge WebView2 runtime).
+
+---
+
+## How It Works
+
+### Fast Keyframe Indexing & Smart Cut Pipeline
+
+To avoid waiting minutes on 100GB+ files, HDRCut parses MKV EBML `Cues` and MP4 `stss`/`stts`
+atoms directly in pure Rust (`64-bit` offsets) before touching FFmpeg. During export, Smart Cut
+splits each non-keyframe cut boundary cleanly while keeping the untouched interior stream-copied:
+
+```mermaid
+flowchart LR
+  SRC["100GB+ Source<br/>MKV / MP4 / MOV"] --> IDX["Pure-Rust Keyframe Index<br/>EBML Cues / MP4 stss"]
+  IDX --> PLAN["Smart Cut Planner"]
+  PLAN --> HEAD["Boundary Head GOP<br/>Local HDR-matched encode"]
+  PLAN --> BODY["99%+ Interior Video<br/>Zero re-encode (-c:v copy)"]
+  PLAN --> TAIL["Boundary Tail GOP<br/>Local HDR-matched encode"]
+  HEAD --> MUX["Single-Pass FFmpeg Mux<br/>MKV / MP4"]
+  BODY --> MUX
+  TAIL --> MUX
+  AUD["Audio Tracks & Lossless Mix<br/>FLAC / PCM / Copy"] --> MUX
+  SUB["Internal & External Subtitles<br/>-itsoffset Sync"] --> MUX
+  MUX --> OUT["Lossless Output<br/>source-edit.mkv / .mp4"]
+```
+
+- **Timebase-locked stitching.** Boundary GOP clips match the source container timebase (e.g.
+  `1/1000` for MKV, exact `video_track_timescale` for MP4/MOV) along with pixel format, color
+  primaries, transfer characteristics (`smpte2084` / `arib-std-b67`), and mastering metadata.
+- **No 100GB temp copies.** Interior video segments are read directly via FFmpeg `ffconcat`
+  inpoint/outpoint directives in a single pass.
+- **Format-aware track handling.** Automatically preserves UTF-8 track titles, converts `mov_text`
+  ↔ `srt` when crossing MKV/MP4 boundaries, and applies `-itsoffset` on external subtitles so
+  exports match live `mpv` preview identically.
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
 | --- | --- |
-| `Space` | 播放 / 暂停 |
-| `←` / `→` | 后退 / 前进 5 秒 |
-| `Shift + ←` / `Shift + →` | 上一个 / 下一个关键帧 |
-| `,` / `.` | 上一帧 / 下一帧 |
-| `I` / `O` | 设置入点 / 出点（浏览预览期间直接标记当前浏览帧） |
-| `S` | 开启 / 关闭时间轴「浏览预览（Skimming）」 |
-| `⌘T` / `Ctrl+T` | 新建标签页 |
-| `⌘W` / `Ctrl+W` | 关闭当前标签页 |
-| `⌘1` ～ `⌘9` / `Ctrl+1` ～ `Ctrl+9` | 快速切换至第 1～9 个（或最后一个）标签页 |
-| `⌘⇧[` / `⌘⇧]` 或 `Ctrl+Tab` | 切换上一个 / 下一个标签页 |
-| `⌘O` / `Ctrl+O` | 导入视频文件 |
+| `Space` | Play / Pause |
+| `←` / `→` | Seek backward / forward 5s |
+| `Shift + ←` / `Shift + →` | Jump to previous / next keyframe |
+| `,` / `.` | Step previous / next single frame |
+| `I` / `O` | Mark In / Mark Out (uses live skimmed frame when skimming) |
+| `S` | Toggle Final Cut Pro–style Timeline Skimming |
+| `⌘T` / `Ctrl+T` | Open new tab |
+| `⌘W` / `Ctrl+W` | Close active tab |
+| `⌘1`–`⌘9` / `Ctrl+1`–`Ctrl+9` | Switch to tab 1–9 (or last tab on `9`) |
+| `⌘⇧[` / `⌘⇧]` or `Ctrl+Tab` | Previous / Next tab |
+| `⌘O` / `Ctrl+O` | Import video file |
 
 ---
 
-## 下载与使用
+## Development
 
-前往本仓库的 **[Releases](../../releases)** 页面下载对应平台的自包含成品包（均已内置 `libmpv`、`ffmpeg` 与 `ffprobe`，解压即可使用）：
+### Prerequisites
 
-- **macOS (Apple Silicon arm64)**：`HDRCut-<version>-macos-arm64.dmg`
-  - 首次打开若提示「无法验证开发者」，可在终端执行 `xattr -cr /Applications/HDRCut.app` 或在「系统设置 → 隐私与安全性」中点击「仍要打开」。
-- **Windows (x64 绿色便携版)**：`HDRCut-<version>-windows-x64-portable.zip`
-  - 解压至任意目录，直接双击运行 `HDRCut.exe`（需确保系统已安装 Edge WebView2 运行时，Windows 10/11 默认自带）。
+- **Node.js** >= 20 and **pnpm** >= 9
+- **Rust** stable toolchain (`rustup`)
+- **macOS**: `brew install mpv ffmpeg`
+- **Windows**: MSVC Build Tools + `libmpv-2.dll`, `ffmpeg.exe`, `ffprobe.exe` (auto-fetched by `scripts/fetch-windows-deps.sh`)
 
----
+### Run Locally
 
-## 本地开发与构建
-
-### 环境要求
-- Node.js >= 20 & `pnpm` >= 9
-- Rust stable toolchain
-- macOS：`brew install mpv ffmpeg`
-- Windows：MSVC Build Tools + `libmpv-2.dll` / `ffmpeg.exe` / `ffprobe.exe`
-
-### 启动开发模式
 ```bash
+git clone https://github.com/xzajyjs/HDRCut.git
+cd HDRCut
 pnpm install
 npx @tauri-apps/cli@2 dev
 ```
 
-### 本地打包
-```bash
-# macOS Apple Silicon 自包含 .app
-pnpm build:mac
+### Build & Test
 
-# 从 macOS 交叉编译 Windows x64 便携包（需 cargo-xwin）
-pnpm build:win
-```
-
-### 运行测试
 ```bash
+# Run Rust unit tests & frontend type-check/build
 cargo test --manifest-path src-tauri/Cargo.toml
 pnpm build
+
+# Build self-contained macOS Apple Silicon .app
+pnpm build:mac
+
+# Cross-compile Windows x64 portable bundle from macOS (requires cargo-xwin)
+pnpm build:win
 ```
 
 ---
 
-## 变更日志
+## License & Third-Party Notices
 
-版本历史详见 [CHANGELOG.md](./CHANGELOG.md)。
-
-## 开源协议与第三方声明
-
-- HDRCut 源代码采用 [MIT License](./LICENSE) 许可协议。
-- 发行包内附带的运行时二进制依赖分别遵循其各自开源协议：**FFmpeg**（LGPL / GPL）与 **libmpv**（LGPL / GPL）。
+- HDRCut source code is licensed under the **[MIT License](LICENSE)**.
+- Self-contained release bundles include third-party runtime binaries governed by their respective
+  licenses: **[FFmpeg](https://ffmpeg.org/legal.html)** (LGPL / GPL) and
+  **[libmpv](https://github.com/mpv-player/mpv/blob/master/Copyright)** (LGPL / GPL).
