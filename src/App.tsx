@@ -136,7 +136,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 const MAX_HISTORY_STEPS = 80;
 
@@ -202,6 +202,7 @@ export function App() {
   const [showDetails, setShowDetails] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showAdvancedExport, setShowAdvancedExport] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [skimmingEnabled, setSkimmingEnabled] = useState(false);
 
   // Auto-update state (background check on startup + manual check + full self-update)
@@ -1562,12 +1563,19 @@ export function App() {
 
     getCurrentWebview()
       .onDragDropEvent((event) => {
-        if (event.payload.type === 'drop' && event.payload.paths.length > 0) {
-          const dropped = event.payload.paths[0];
-          if (/\.hdrcut$/i.test(dropped)) {
-            handleOpenProjectPathRef.current(dropped);
-          } else {
-            handleLoadVideoPathRef.current(dropped);
+        if (event.payload.type === 'enter' || event.payload.type === 'over') {
+          setIsDraggingFile(true);
+        } else if (event.payload.type === 'leave') {
+          setIsDraggingFile(false);
+        } else if (event.payload.type === 'drop') {
+          setIsDraggingFile(false);
+          if (event.payload.paths.length > 0) {
+            const dropped = event.payload.paths[0];
+            if (/\.hdrcut$/i.test(dropped)) {
+              handleOpenProjectPathRef.current(dropped);
+            } else {
+              handleLoadVideoPathRef.current(dropped);
+            }
           }
         }
       })
@@ -3126,8 +3134,10 @@ export function App() {
               Boolean(pendingProject) ||
               showAdvancedExport
             }
+            isDraggingFile={isDraggingFile}
             errorMsg={activeTab.playerError}
             onImportVideo={handleImportVideo}
+            onOpenProject={() => void handleOpenProject()}
             onTogglePause={handleTogglePause}
           />
           <PlaybackControls

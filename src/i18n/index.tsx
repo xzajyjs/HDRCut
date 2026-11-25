@@ -51,8 +51,10 @@ const zh = {
   'top.losslessExport': '无损导出 {fmt}',
 
   // VideoViewport
-  'viewport.dropTitle': '拖入或导入视频文件',
+  'viewport.dropTitle': '拖入或导入视频 / 项目文件',
   'viewport.selectFile': '选择视频文件',
+  'viewport.openProject': '打开项目',
+  'viewport.dropHoverHint': '松开鼠标即可导入视频或打开项目 (.hdrcut)',
   'viewport.cardHdr': '真 HDR 硬解引擎',
   'viewport.cardLossless': '绝对零重编码',
   'viewport.cardAudio': '多音轨混音命名',
@@ -488,8 +490,10 @@ const en: Record<TranslationKey, string> = {
   'top.losslessExport': 'Export {fmt}',
 
   // VideoViewport
-  'viewport.dropTitle': 'Drop or Import a Video File',
+  'viewport.dropTitle': 'Drop or Import Video / Project',
   'viewport.selectFile': 'Select Video File',
+  'viewport.openProject': 'Open Project',
+  'viewport.dropHoverHint': 'Release to import video or open project (.hdrcut)',
   'viewport.cardHdr': 'True HDR Hardware Engine',
   'viewport.cardLossless': 'Zero Re-encode Copy',
   'viewport.cardAudio': 'Multi-Track Audio & Mix',

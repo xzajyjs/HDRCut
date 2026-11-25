@@ -211,23 +211,25 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
   const segmentLabels = [t('play.segH'), t('play.segM'), t('play.segS'), t('play.segF')];
 
   return (
-    <div className="h-[48px] shrink-0 bg-[#10141d] border-t border-b border-white/[0.07] px-3 flex items-center justify-between gap-2">
+    <div className="h-[48px] shrink-0 bg-[#10141d] border-t border-b border-white/[0.07] px-2.5 flex items-center justify-between gap-1.5 overflow-hidden">
       {/* Left: Transport & Frame/Keyframe Navigation */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <button
           disabled={disabled}
           onClick={() => onStepKeyframe('prev')}
-          className="h-7 px-2 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+          className="h-7 px-1.5 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center gap-1 text-[11px] whitespace-nowrap shrink-0 transition-colors cursor-pointer"
           title={t('play.prevKfTitle')}
         >
-          <SkipBack className="w-3.5 h-3.5 text-amber-400" />
-          <span className="hidden xl:inline text-[10px] text-amber-300/90">{t('play.kfShort')}</span>
+          <SkipBack className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span className="hidden 2xl:inline text-[10px] text-amber-300/90 whitespace-nowrap">
+            {t('play.kfShort')}
+          </span>
         </button>
 
         <button
           disabled={disabled}
           onClick={() => onStepFrame(false)}
-          className="h-7 w-7 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center justify-center transition-colors cursor-pointer"
+          className="h-7 w-7 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
           title={t('play.prevFrameTitle')}
         >
           <ChevronLeft className="w-4 h-4" />
@@ -236,7 +238,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         <button
           disabled={disabled}
           onClick={onTogglePause}
-          className={`h-8 w-8 rounded-lg disabled:opacity-35 flex items-center justify-center shadow-md transition-colors cursor-pointer ${
+          className={`h-8 w-8 rounded-lg disabled:opacity-35 flex items-center justify-center shrink-0 shadow-md transition-colors cursor-pointer ${
             playerState.paused
               ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/25'
               : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-500/20'
@@ -253,7 +255,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         <button
           disabled={disabled}
           onClick={() => onStepFrame(true)}
-          className="h-7 w-7 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center justify-center transition-colors cursor-pointer"
+          className="h-7 w-7 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
           title={t('play.nextFrameTitle')}
         >
           <ChevronRight className="w-4 h-4" />
@@ -262,25 +264,27 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         <button
           disabled={disabled}
           onClick={() => onStepKeyframe('next')}
-          className="h-7 px-2 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center gap-1 text-[11px] transition-colors cursor-pointer"
+          className="h-7 px-1.5 rounded-md hover:bg-white/[0.08] text-zinc-300 disabled:opacity-35 flex items-center gap-1 text-[11px] whitespace-nowrap shrink-0 transition-colors cursor-pointer"
           title={t('play.nextKfTitle')}
         >
-          <span className="hidden xl:inline text-[10px] text-amber-300/90">{t('play.kfShort')}</span>
-          <SkipForward className="w-3.5 h-3.5 text-amber-400" />
+          <span className="hidden 2xl:inline text-[10px] text-amber-300/90 whitespace-nowrap">
+            {t('play.kfShort')}
+          </span>
+          <SkipForward className="w-3.5 h-3.5 text-amber-400 shrink-0" />
         </button>
 
-        <div className="hidden sm:flex items-center gap-0.5 ml-1">
+        <div className="hidden sm:flex items-center gap-0.5 ml-0.5 shrink-0">
           <button
             disabled={disabled}
             onClick={() => onSeekRelative(-5)}
-            className="h-6 px-1.5 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[10px] font-mono-num text-zinc-300 disabled:opacity-35 cursor-pointer"
+            className="h-6 px-1.5 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[10px] font-mono-num text-zinc-300 disabled:opacity-35 whitespace-nowrap shrink-0 cursor-pointer"
           >
             -5s
           </button>
           <button
             disabled={disabled}
             onClick={() => onSeekRelative(5)}
-            className="h-6 px-1.5 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[10px] font-mono-num text-zinc-300 disabled:opacity-35 cursor-pointer"
+            className="h-6 px-1.5 rounded bg-white/[0.05] hover:bg-white/[0.1] text-[10px] font-mono-num text-zinc-300 disabled:opacity-35 whitespace-nowrap shrink-0 cursor-pointer"
           >
             +5s
           </button>
@@ -291,7 +295,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <div
             ref={editorWrapRef}
             onBlur={handleEditorBlur}
-            className="ml-2 px-2 py-0.5 rounded-md bg-black/75 border border-cyan-400/70 font-mono-num text-[12px] text-cyan-200 flex items-center gap-0.5 shadow-sm shadow-cyan-500/20"
+            className="ml-1.5 px-2 py-0.5 rounded-md bg-black/75 border border-cyan-400/70 font-mono-num text-[12px] text-cyan-200 flex items-center gap-0.5 shrink-0 whitespace-nowrap shadow-sm shadow-cyan-500/20"
             title={t('play.timeEditorTitle')}
           >
             {[0, 1, 2, 3].map((idx) => (
@@ -319,7 +323,7 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
             type="button"
             disabled={disabled}
             onClick={openTimeEditor}
-            className="ml-2 px-2.5 py-1 rounded-md bg-black/40 hover:bg-black/65 border border-white/[0.06] hover:border-cyan-400/40 font-mono-num text-[12px] text-zinc-100 flex items-center gap-1.5 transition-colors cursor-pointer disabled:cursor-default disabled:hover:border-white/[0.06]"
+            className="ml-1.5 px-2 py-1 rounded-md bg-black/40 hover:bg-black/65 border border-white/[0.06] hover:border-cyan-400/40 font-mono-num text-[11.5px] text-zinc-100 flex items-center gap-1 shrink-0 whitespace-nowrap transition-colors cursor-pointer disabled:cursor-default disabled:hover:border-white/[0.06]"
             title={t('play.timeClickTitle')}
           >
             <span className="text-cyan-300">
@@ -331,55 +335,61 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         )}
       </div>
 
-      {/* Center: Instant In / Out Cutting Shortcuts */}
-      <div className="flex items-center gap-1.5">
+      {/* Center: Instant In / Out Cutting Shortcuts (strictly single-line, never wraps) */}
+      <div className="flex items-center gap-1.5 shrink-0">
         <button
           disabled={disabled}
           onClick={onMarkIn}
-          className={`h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-35 ${
+          className={`h-7 px-2 rounded-md border text-[11px] font-medium whitespace-nowrap shrink-0 flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-35 ${
             draftIn !== null
               ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200'
               : 'bg-white/[0.05] hover:bg-white/[0.1] border-white/[0.08] text-zinc-200'
           }`}
           title={t('play.markInTitle')}
         >
-          {t('play.markIn')}{draftIn !== null ? ` ${formatTimecode(draftIn)}` : ''}
+          <span>{t('play.markIn')}</span>
+          {draftIn !== null && (
+            <span className="font-mono-num text-[10.5px]">{formatTimecode(draftIn, false)}</span>
+          )}
         </button>
 
         <button
           disabled={disabled}
           onClick={onMarkOut}
-          className={`h-7 px-2.5 rounded-md border text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-35 ${
+          className={`h-7 px-2 rounded-md border text-[11px] font-medium whitespace-nowrap shrink-0 flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-35 ${
             draftOut !== null
               ? 'bg-amber-500/20 border-amber-400/50 text-amber-200'
               : 'bg-white/[0.05] hover:bg-white/[0.1] border-white/[0.08] text-zinc-200'
           }`}
           title={t('play.markOutTitle')}
         >
-          {t('play.markOut')}{draftOut !== null ? ` ${formatTimecode(draftOut)}` : ''}
+          <span>{t('play.markOut')}</span>
+          {draftOut !== null && (
+            <span className="font-mono-num text-[10.5px]">{formatTimecode(draftOut, false)}</span>
+          )}
         </button>
 
         {draftIn !== null && draftOut !== null && draftOut > draftIn && (
           <button
             onClick={onCommitDraftRange}
-            className="h-7 px-2.5 rounded-md bg-rose-500 hover:bg-rose-400 text-white text-[11px] font-semibold flex items-center gap-1 shadow-md shadow-rose-500/25 transition-colors cursor-pointer"
+            className="h-7 px-2 rounded-md bg-rose-500 hover:bg-rose-400 text-white text-[11px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 shadow-md shadow-rose-500/25 transition-colors cursor-pointer"
           >
-            <Scissors className="w-3 h-3" />
+            <Scissors className="w-3 h-3 shrink-0" />
             <span>{t('play.addRange')}</span>
           </button>
         )}
       </div>
 
       {/* Right: Preview Audio Switcher, Subtitle Switcher, HDR Toggle, Speed, Volume */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 min-w-0 shrink">
         {audioTracks.length > 1 && (
-          <div className="relative flex items-center bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-md h-7 transition-colors">
+          <div className="relative flex items-center bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-md h-7 min-w-0 shrink transition-colors">
             <Headphones className="w-3 h-3 text-cyan-400 shrink-0 ml-2 pointer-events-none" />
             <select
               disabled={disabled}
               value={playerState.aid}
               onChange={(e) => onSelectPreviewAudio(Number(e.target.value))}
-              className="appearance-none bg-transparent h-full pl-1.5 pr-6 text-[11px] font-medium text-zinc-200 outline-none max-w-[132px] truncate cursor-pointer disabled:opacity-35"
+              className="appearance-none bg-transparent h-full pl-1.5 pr-6 text-[11px] font-medium text-zinc-200 outline-none max-w-[100px] 2xl:max-w-[132px] truncate cursor-pointer disabled:opacity-35"
               title={t('play.switchAudioTitle')}
             >
               {audioTracks.map((t) => (
@@ -393,13 +403,13 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         )}
 
         {subtitleTracks.length > 0 && (
-          <div className="relative flex items-center bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-md h-7 transition-colors">
+          <div className="relative flex items-center bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-md h-7 min-w-0 shrink transition-colors">
             <Subtitles className="w-3 h-3 text-sky-400 shrink-0 ml-2 pointer-events-none" />
             <select
               disabled={disabled}
               value={playerState.sid}
               onChange={(e) => onSelectPreviewSubtitle(Number(e.target.value))}
-              className="appearance-none bg-transparent h-full pl-1.5 pr-6 text-[11px] font-medium text-zinc-200 outline-none max-w-[136px] truncate cursor-pointer disabled:opacity-35"
+              className="appearance-none bg-transparent h-full pl-1.5 pr-6 text-[11px] font-medium text-zinc-200 outline-none max-w-[105px] 2xl:max-w-[136px] truncate cursor-pointer disabled:opacity-35"
               title={t('play.switchSubTitle')}
             >
               <option value={0} className="bg-[#111520] text-zinc-400">
@@ -419,24 +429,24 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
           <button
             disabled={disabled}
             onClick={onToggleHdr}
-            className={`h-7 px-2 rounded-md border text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
+            className={`h-7 px-2 rounded-md border text-[10px] font-semibold flex items-center gap-1 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
               playerState.hdr_passthrough
                 ? 'bg-amber-500/20 border-amber-400/50 text-amber-300'
                 : 'bg-white/[0.05] border-white/[0.08] text-zinc-400'
             }`}
             title={t('play.hdrToggleTitle')}
           >
-            <Sparkles className="w-3 h-3" />
+            <Sparkles className="w-3 h-3 shrink-0" />
             <span>{playerState.hdr_passthrough ? t('play.hdrPassthrough') : t('play.sdrTonemap')}</span>
           </button>
         )}
 
-        <div className="relative flex items-center bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-md h-7 transition-colors">
+        <div className="relative flex items-center bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] rounded-md h-7 shrink-0 transition-colors">
           <select
             disabled={disabled}
             value={playerState.speed}
             onChange={(e) => onSetSpeed(Number(e.target.value))}
-            className="appearance-none bg-transparent h-full pl-2.5 pr-6 text-[11px] font-mono-num font-medium text-zinc-200 outline-none cursor-pointer disabled:opacity-35"
+            className="appearance-none bg-transparent h-full pl-2 pr-5 text-[11px] font-mono-num font-medium text-zinc-200 outline-none cursor-pointer disabled:opacity-35"
             title={t('play.speedTitle')}
           >
             {SPEEDS.map((s) => (
@@ -445,10 +455,10 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
               </option>
             ))}
           </select>
-          <ChevronDown className="w-3 h-3 text-zinc-400 pointer-events-none absolute right-1.5" />
+          <ChevronDown className="w-3 h-3 text-zinc-400 pointer-events-none absolute right-1" />
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             disabled={disabled}
             onClick={() => onSetVolume(muted ? 100 : 0)}

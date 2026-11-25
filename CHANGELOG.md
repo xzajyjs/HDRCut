@@ -7,6 +7,26 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.7.1] - 2026-11-25
+
+### English
+- **Welcome Screen Project Open Button**:
+  - Updated the empty viewport prompt to cover both videos and projects ("Drop or Import Video / Project") and added a dedicated **Open Project** button right next to **Select Video File**.
+- **Glowing Blue Drag-and-Drop Halo Around Video Viewport**:
+  - Dragging a video or `.hdrcut` project file over the window now highlights the entire video preview frame with a vivid glowing cyan-blue perimeter aura (cleanly visible both on the empty screen and around live hardware-accelerated `libmpv` video playback).
+- **Prevent Playback Bar Wrapping on Wide Timecodes**:
+  - Locked every playback transport button (`KF`, `Mark In`, `Mark Out`, `Add Range`, timecode, HDR toggle, speed, volume) to strict single-line `whitespace-nowrap shrink-0` layout while allowing long track names to truncate smoothly, eliminating vertical wrapping when In/Out timestamps are displayed.
+
+### 中文
+- **欢迎页支持视频与项目并新增「打开项目」按钮**：
+  - 将空白预览区提示文案更新为「拖入或导入视频 / 项目文件」，并在「选择视频文件」旁新增快捷 **「打开项目」** 按钮。
+- **拖拽视频/项目悬停高亮蓝色光晕**：
+  - 将视频或 `.hdrcut` 项目文件拖入窗口时，视频预览框四周立即亮起醒目的青蓝色呼吸光晕边框（空页面与已加载原生 `libmpv` 视频播放时均清晰可见）。
+- **修复时间码较宽时播放控制栏按钮异常换行**：
+  - 为 `I帧`、`设入点 [I]`、`设出点 [O]`、时间码等全部播放控制按键加上 `whitespace-nowrap shrink-0` 单行锁定，同时允许过长字幕/音轨名在下拉框内平滑截断，彻底消除多行错位。
+
+---
+
 ## [1.7.0] - 2026-11-25
 
 ### English
