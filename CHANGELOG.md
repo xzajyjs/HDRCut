@@ -7,6 +7,22 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.6.5] - 2026-11-25
+
+### English
+- **Real-Time Export ETA & Write Speed Display**:
+  - Added live estimated remaining time (`ETA`), real-time disk write throughput (`MB/s` / `GB/s`), FFmpeg speed multiplier, and written size during video export, plus total elapsed time and average throughput upon completion.
+- **Full Multi-Line Layout for Export Completion Toast**:
+  - Redesigned the top-left floating toast card into a spacious multi-line horizontal split layout (`status` + `duration · file size · elapsed · write speed` + `output filename` on the left, action buttons on the right), eliminating truncated `13.15 GB…` text while staying cleanly above the native `libmpv` video viewport.
+
+### 中文
+- **导出实时显示预估剩余时间（ETA）与写入速度**：
+  - 导出进行中实时计算并展示预估剩余时间（`剩余 XXs`）、实时磁盘写入速度（`MB/s` / `GB/s`）、封装倍速与已写入大小，导出完成时同步显示总耗时与平均吞吐速度。
+- **导出完成提醒卡片升级为完整多行展示**：
+  - 优化左上角圆角矩形提醒卡片排版，左侧支持多行完整展示标题、时长/文件大小/耗时/写入速度以及输出文件名，右侧放置「打开所在文件夹 / 关闭」按钮，彻底解决 `13.15 GB…` 信息被截断的问题，同时保持严格位于原生视频层上方不被遮挡。
+
+---
+
 ## [1.6.4] - 2026-11-25
 
 ### English

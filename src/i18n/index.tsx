@@ -269,6 +269,8 @@ const zh = {
   'export.cancel': '取消导出',
   'export.reveal': '打开所在文件夹',
   'export.close': '关闭',
+  'export.eta': '剩余 {t}',
+  'export.elapsed': '耗时 {t}',
 
   // App dialogs & status messages
   'dlg.selectVideo': '选择要剪辑的视频文件',
@@ -629,6 +631,8 @@ const en: Record<TranslationKey, string> = {
   'export.cancel': 'Cancel',
   'export.reveal': 'Show in Folder',
   'export.close': 'Close',
+  'export.eta': 'ETA {t}',
+  'export.elapsed': 'Done in {t}',
 
   // App dialogs & status messages
   'dlg.selectVideo': 'Select Video File to Edit',

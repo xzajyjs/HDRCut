@@ -135,6 +135,9 @@ pub struct ExportProgressEvent {
     pub written_bytes: u64,
     pub message: String,
     pub output_path: String,
+    pub eta_sec: Option<f64>,
+    pub write_bytes_per_sec: Option<f64>,
+    pub elapsed_sec: Option<f64>,
 }
 
 #[derive(Debug, Clone)]
@@ -234,6 +237,7 @@ impl ExportManager {
         expected_duration: f64,
         temp_files: &mut Vec<PathBuf>,
     ) -> Result<String, String> {
+        let total_started = std::time::Instant::now();
         // Determine whether Smart Cut can and should be used
         let can_smart_encode = req
             .video_meta
@@ -341,6 +345,9 @@ impl ExportManager {
                                     "智能剪辑：精确编码切点 GOP ({reencode_done}/{reencode_total})，其余片段保持零重编码..."
                                 ),
                                 output_path: req.output_path.clone(),
+                                eta_sec: None,
+                                write_bytes_per_sec: None,
+                                elapsed_sec: Some(total_started.elapsed().as_secs_f64()),
                             },
                         );
 
@@ -873,6 +880,9 @@ impl ExportManager {
                     "正在启动单遍无损封装...".into()
                 },
                 output_path: req.output_path.clone(),
+                eta_sec: None,
+                write_bytes_per_sec: None,
+                elapsed_sec: Some(total_started.elapsed().as_secs_f64()),
             },
         );
 
@@ -887,6 +897,7 @@ impl ExportManager {
             cmd.creation_flags(0x08000000);
         }
 
+        let mux_started = std::time::Instant::now();
         let mut child = cmd.spawn().map_err(|e| format!("启动 ffmpeg 失败: {e}"))?;
         *self.active_pid.lock() = child.id();
 
@@ -932,6 +943,27 @@ impl ExportManager {
                         let raw_ratio = (out_time_sec / expected_duration).clamp(0.0, 1.0);
                         let pct = (progress_base_pct + raw_ratio * (99.5 - progress_base_pct))
                             .clamp(0.0, 99.5);
+                        let mux_elapsed = mux_started.elapsed().as_secs_f64();
+                        let write_bps = if mux_elapsed > 0.15 && written_bytes > 0 {
+                            Some(written_bytes as f64 / mux_elapsed)
+                        } else {
+                            None
+                        };
+                        let remaining_media = (expected_duration - out_time_sec).max(0.0);
+                        let speed_mult = speed
+                            .trim()
+                            .trim_end_matches(['x', 'X'])
+                            .parse::<f64>()
+                            .ok()
+                            .filter(|v| v.is_finite() && *v > 0.05);
+                        let eta_sec = if let Some(mult) = speed_mult {
+                            Some(remaining_media / mult)
+                        } else if out_time_sec > 0.3 && mux_elapsed > 0.2 {
+                            Some(remaining_media * (mux_elapsed / out_time_sec))
+                        } else {
+                            None
+                        };
+
                         let _ = app.emit(
                             "export-progress",
                             ExportProgressEvent {
@@ -942,11 +974,14 @@ impl ExportManager {
                                 speed: speed.clone(),
                                 written_bytes,
                                 message: if use_smart_cut {
-                                    format!("智能剪辑无损拼接中 · 速度 {speed}")
+                                    "智能剪辑无损拼接中".into()
                                 } else {
-                                    format!("无损直出封装中 · 速度 {speed}")
+                                    "无损直出封装中".into()
                                 },
                                 output_path: req.output_path.clone(),
+                                eta_sec,
+                                write_bytes_per_sec: write_bps,
+                                elapsed_sec: Some(total_started.elapsed().as_secs_f64()),
                             },
                         );
                     }
@@ -983,6 +1018,9 @@ impl ExportManager {
                     written_bytes,
                     message: msg.clone(),
                     output_path: req.output_path.clone(),
+                    eta_sec: None,
+                    write_bytes_per_sec: None,
+                    elapsed_sec: Some(total_started.elapsed().as_secs_f64()),
                 },
             );
             return Err(msg);
@@ -991,6 +1029,12 @@ impl ExportManager {
         let final_size = std::fs::metadata(&req.output_path)
             .map(|m| m.len())
             .unwrap_or(written_bytes);
+        let total_elapsed = total_started.elapsed().as_secs_f64();
+        let avg_bps = if total_elapsed > 0.05 && final_size > 0 {
+            Some(final_size as f64 / total_elapsed)
+        } else {
+            None
+        };
 
         let _ = app.emit(
             "export-progress",
@@ -1007,6 +1051,9 @@ impl ExportManager {
                     format!("无损 {fmt_label} 导出完成！")
                 },
                 output_path: req.output_path.clone(),
+                eta_sec: Some(0.0),
+                write_bytes_per_sec: avg_bps,
+                elapsed_sec: Some(total_elapsed),
             },
         );
 
@@ -1243,6 +1290,9 @@ impl ExportManager {
                 written_bytes: 0,
                 message: "导出已取消".into(),
                 output_path: req.output_path.clone(),
+                eta_sec: None,
+                write_bytes_per_sec: None,
+                elapsed_sec: None,
             },
         );
         Err("导出已由用户取消".to_string())

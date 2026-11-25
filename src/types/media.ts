@@ -225,6 +225,9 @@ export interface ExportProgressEvent {
   written_bytes: number;
   message: string;
   output_path: string;
+  eta_sec?: number | null;
+  write_bytes_per_sec?: number | null;
+  elapsed_sec?: number | null;
 }
 
 export interface SavedProjectAudioTrack {
