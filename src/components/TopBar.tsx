@@ -105,7 +105,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight text-white">HDRCut</div>
-            <div className="text-[10px] text-zinc-500 font-medium">v1.6.2</div>
+            <div className="text-[10px] text-zinc-500 font-medium">v1.6.3</div>
           </div>
         </div>
 

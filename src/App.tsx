@@ -134,7 +134,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.6.3';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 const MAX_HISTORY_STEPS = 80;
 

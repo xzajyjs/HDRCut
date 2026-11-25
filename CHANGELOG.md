@@ -7,6 +7,18 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.6.3] - 2026-11-25
+
+### English
+- **Distinct Paused vs Playing Button Color**:
+  - The Play/Pause transport button now displays in red when playback is paused and switches to cyan-blue while actively playing, making current playback state immediately distinguishable at a glance.
+
+### 中文
+- **播放/暂停按键状态色区分**：
+  - 播放控制栏的播放/暂停按键在暂停状态下改为醒目红色，播放中保持原有蓝色，一眼即可区分当前播放状态。
+
+---
+
 ## [1.6.2] - 2026-11-25
 
 ### English

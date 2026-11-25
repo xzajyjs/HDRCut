@@ -235,11 +235,15 @@ export const PlaybackControls: React.FC<PlaybackControlsProps> = ({
         <button
           disabled={disabled}
           onClick={onTogglePause}
-          className="h-8 w-8 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 disabled:opacity-35 flex items-center justify-center shadow-md shadow-cyan-500/20 transition-colors cursor-pointer"
+          className={`h-8 w-8 rounded-lg disabled:opacity-35 flex items-center justify-center shadow-md transition-colors cursor-pointer ${
+            playerState.paused
+              ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/25'
+              : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-500/20'
+          }`}
           title={t('play.playPauseTitle')}
         >
           {playerState.paused ? (
-            <Play className="w-4 h-4 fill-slate-950 ml-0.5" />
+            <Play className="w-4 h-4 fill-white ml-0.5" />
           ) : (
             <Pause className="w-4 h-4 fill-slate-950" />
           )}
