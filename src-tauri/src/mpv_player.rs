@@ -237,7 +237,7 @@ impl MpvPlayer {
         let _ = core.lib.set_prop_f64(core.handle, "sub-delay", 0.0);
         let _ = core
             .lib
-            .set_prop_flag(core.handle, "pause", start_paused.unwrap_or(false));
+            .set_prop_flag(core.handle, "pause", start_paused.unwrap_or(true));
 
         core.lib
             .run_command_async(core.handle, &["loadfile", path, "replace"])?;

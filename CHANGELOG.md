@@ -7,6 +7,16 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.4.1] - 2026-11-25
+
+### English
+- **Disable Auto-Play on Video Import**: Imported videos now open paused on the first frame by default instead of starting playback automatically.
+
+### 中文
+- **导入视频默认不自动播放**：导入视频后默认停留在首帧暂停状态，不再自动开始播放。
+
+---
+
 ## [1.4.0] - 2026-11-25
 
 ### English

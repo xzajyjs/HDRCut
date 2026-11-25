@@ -414,7 +414,7 @@ export function App() {
           playerState: {
             ...INITIAL_PLAYER_STATE,
             duration: info.duration,
-            paused: false,
+            paused: true,
             sid: editableSubs.length > 0 ? editableSubs[0].mpv_sid : 0,
           },
           ranges: [],
@@ -436,7 +436,7 @@ export function App() {
               filePath: info.file_path,
               hdrFormat: info.video?.hdr_format ?? null,
               startTime: null,
-              startPaused: false,
+              startPaused: true,
             });
           } catch (err) {
             updateTab(targetTabId, (prev) => ({
