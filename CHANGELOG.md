@@ -7,6 +7,20 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.4.2] - 2026-11-25
+
+### English
+- **Preserve Subtitle Title & Language on Export and Re-Import**:
+  - Single and batch subtitle exports now encode track order, title, and ISO language code cleanly in the filename (e.g. `<video> - 11_Portuguese (Brazil) [por].srt`, `<video> - 13_Chinese (Simplified) [chi].srt`).
+  - Re-importing exported subtitles (single or batch) automatically restores the exact original track title, language code, and natural track ordering, and also detects standard `[lang]` / `.lang` tags on third-party subtitle files.
+
+### 中文
+- **字幕导出与导入保留完整名称与语言代码**：
+  - 单条导出与批量导出字幕时，文件名统一保留序号、字幕名称与 ISO 语言代码（例如 `<视频名> - 11_Portuguese (Brazil) [por].srt`、`<视频名> - 13_Chinese (Simplified) [chi].srt`）。
+  - 重新导入（单选或多选批量导入）时自动精确还原原字幕名称、语言代码与原始轨道顺序，同时兼容常见第三方外挂字幕的 `[lang]` / `.lang` 语言后缀识别。
+
+---
+
 ## [1.4.1] - 2026-11-25
 
 ### English

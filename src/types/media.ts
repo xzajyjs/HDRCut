@@ -99,6 +99,7 @@ export interface ExternalSubtitleInfo {
   file_name: string;
   codec_name: string;
   title: string;
+  language: string | null;
 }
 
 export interface PlayerStateEvent {

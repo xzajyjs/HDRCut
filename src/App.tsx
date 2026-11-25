@@ -84,6 +84,20 @@ function sanitizeFilePart(s: string): string {
   return s.replace(/[\\/:*?"<>|]/g, '_').trim();
 }
 
+function buildExportSubtitleFileName(
+  videoBaseName: string,
+  trackOrderZeroBased: number,
+  title: string,
+  language: string,
+  ext: string
+): string {
+  const num = String(trackOrderZeroBased + 1).padStart(2, '0');
+  const safeTitle = sanitizeFilePart(title || `sub${trackOrderZeroBased + 1}`);
+  const safeLang = sanitizeFilePart(language || '').toLowerCase();
+  const langSuffix = safeLang ? ` [${safeLang}]` : '';
+  return `${videoBaseName} - ${num}_${safeTitle}${langSuffix}.${ext}`;
+}
+
 function audioExtForCodec(codec: string): string {
   const c = codec.toLowerCase();
   if (c === 'aac') return 'm4a';
@@ -1191,11 +1205,9 @@ export function App() {
         },
       ],
     });
-    const paths = Array.isArray(selected)
-      ? selected
-      : typeof selected === 'string'
-      ? [selected]
-      : [];
+    const paths = (
+      Array.isArray(selected) ? selected : typeof selected === 'string' ? [selected] : []
+    ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
     if (paths.length === 0) return;
 
     let maxSid = activeTab.subtitleTracks.reduce((mx, s) => Math.max(mx, s.mpv_sid), 0);
@@ -1214,7 +1226,7 @@ export function App() {
           mpv_sid: maxSid,
           codec_name: info.codec_name,
           codec_long_name: info.codec_name.toUpperCase(),
-          language: '',
+          language: info.language || '',
           title: info.title,
           enabled: true,
           is_default: false,
@@ -1251,8 +1263,13 @@ export function App() {
       if (!media || sub.source_kind !== 'internal' || sub.subtitle_index === undefined) return;
       const ext = subtitleExtForCodec(sub.codec_name);
       const base = getBaseNameWithoutExt(media.file_name);
-      const label = sanitizeFilePart(sub.title || `sub${sub.subtitle_index + 1}`);
-      const defaultName = `${base}_${label}.${ext}`;
+      const defaultName = buildExportSubtitleFileName(
+        base,
+        sub.subtitle_index,
+        sub.title,
+        sub.language,
+        ext
+      );
       const baseDir = activeTab.outputDir || getDirName(media.file_path);
 
       const chosen = await save({
@@ -1332,10 +1349,10 @@ export function App() {
     const items = targets.map((s) => {
       const idx = s.subtitle_index!;
       const ext = subtitleExtForCodec(s.codec_name);
-      const label = sanitizeFilePart(s.title || `sub${idx + 1}`);
+      const fileName = buildExportSubtitleFileName(base, idx, s.title, s.language, ext);
       return {
         subtitle_index: idx,
-        output_path: joinPath(dir, `${base}_sub${idx + 1}_${label}.${ext}`),
+        output_path: joinPath(dir, fileName),
         codec_name: s.codec_name,
       };
     });

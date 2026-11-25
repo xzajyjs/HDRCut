@@ -109,6 +109,7 @@ pub struct ExternalSubtitleInfo {
     pub file_name: String,
     pub codec_name: String,
     pub title: String,
+    pub language: Option<String>,
 }
 
 fn parse_fraction(s: &str) -> Option<f64> {
@@ -689,6 +690,127 @@ pub async fn probe_external_audio(file_path: &str) -> Result<ExternalAudioInfo, 
     })
 }
 
+fn is_known_lang_code(code: &str) -> bool {
+    matches!(
+        code,
+        "eng"
+            | "chi"
+            | "zho"
+            | "chs"
+            | "cht"
+            | "jpn"
+            | "kor"
+            | "fre"
+            | "fra"
+            | "ger"
+            | "deu"
+            | "spa"
+            | "por"
+            | "rus"
+            | "pol"
+            | "ita"
+            | "ara"
+            | "dut"
+            | "nld"
+            | "tur"
+            | "vie"
+            | "tha"
+            | "ind"
+            | "swe"
+            | "nor"
+            | "dan"
+            | "fin"
+            | "ces"
+            | "cze"
+            | "hun"
+            | "ron"
+            | "rum"
+            | "ell"
+            | "gre"
+            | "heb"
+            | "ukr"
+            | "hin"
+            | "may"
+            | "msa"
+            | "und"
+            | "en"
+            | "zh"
+            | "ja"
+            | "ko"
+            | "fr"
+            | "de"
+            | "es"
+            | "pt"
+            | "ru"
+            | "pl"
+            | "it"
+    )
+}
+
+/// Extracts `(title, language)` from a subtitle filename stem so subtitles exported by HDRCut
+/// (e.g. `Movie - 11_Portuguese (Brazil) [por].srt` or `13_Chinese (Simplified) [chi].srt`)
+/// round-trip with identical title and ISO language code upon re-import, while also recognizing
+/// standard third-party `.eng` / `.chi` / `[pol]` suffixes.
+pub fn parse_subtitle_filename_meta(stem: &str) -> (String, Option<String>) {
+    let mut rest = stem.trim().to_string();
+    let mut language: Option<String> = None;
+
+    // 1. Check trailing `[lang]` tag (e.g. ` [pol]`, ` [por]`, ` [chi]`, ` [eng]`)
+    if let Some(open_idx) = rest.rfind('[') {
+        if rest.ends_with(']') && open_idx < rest.len() - 1 {
+            let inside = rest[open_idx + 1..rest.len() - 1].trim();
+            if (2..=3).contains(&inside.len()) && inside.chars().all(|c| c.is_ascii_alphabetic()) {
+                language = Some(inside.to_lowercase());
+                rest = rest[..open_idx].trim_end().to_string();
+            }
+        }
+    }
+
+    // 2. Fallback: check trailing `.lang` (e.g. `Movie.2026.eng.srt`, `Movie.chi.ass`)
+    if language.is_none() {
+        if let Some(dot_idx) = rest.rfind('.') {
+            let candidate = rest[dot_idx + 1..].trim().to_lowercase();
+            if is_known_lang_code(&candidate) && dot_idx > 0 {
+                language = Some(candidate);
+                rest = rest[..dot_idx].trim_end().to_string();
+            }
+        }
+    }
+
+    // 3. Strip HDRCut export prefix (`<base> - <NN>_<title>` or `<NN>_<title>`)
+    let mut title = rest.clone();
+    if let Ok(re_new) = regex::Regex::new(r"^(?:.*-\s*)?\d{2,3}_(.+)$") {
+        if let Some(caps) = re_new.captures(&rest) {
+            if let Some(m) = caps.get(1) {
+                let candidate = m.as_str().trim();
+                if !candidate.is_empty() {
+                    title = candidate.to_string();
+                }
+            }
+        }
+    }
+    if title == rest {
+        if let Ok(re_legacy) = regex::Regex::new(r"^.*_(?:sub|字幕)\d+_(.+)$") {
+            if let Some(caps) = re_legacy.captures(&rest) {
+                if let Some(m) = caps.get(1) {
+                    let candidate = m.as_str().trim();
+                    if !candidate.is_empty() {
+                        title = candidate.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    let final_title = if title.trim().is_empty() {
+        stem.trim().to_string()
+    } else {
+        title.trim().to_string()
+    };
+
+    (final_title, language)
+}
+
 pub fn probe_external_subtitle(file_path: &str) -> Result<ExternalSubtitleInfo, String> {
     let path = Path::new(file_path);
     if !path.is_file() {
@@ -714,13 +836,16 @@ pub fn probe_external_subtitle(file_path: &str) -> Result<ExternalSubtitleInfo, 
     let stem = path
         .file_stem()
         .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| "外挂字幕".to_string());
+        .unwrap_or_else(|| "External Subtitle".to_string());
+
+    let (title, language) = parse_subtitle_filename_meta(&stem);
 
     Ok(ExternalSubtitleInfo {
         file_path: file_path.to_string(),
         file_name,
         codec_name,
-        title: stem,
+        title,
+        language,
     })
 }
 
@@ -789,4 +914,47 @@ pub async fn probe_keyframes_near(
     kfs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     kfs.dedup_by(|a, b| (*a - *b).abs() < 0.001);
     Ok(kfs)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_subtitle_filename_meta;
+
+    #[test]
+    fn test_parse_subtitle_filename_meta_roundtrip() {
+        assert_eq!(
+            parse_subtitle_filename_meta(
+                "Grand.Theft.Auto.VI.An.Extended.Look.2026.2160p - 10_Polish [pol]"
+            ),
+            ("Polish".to_string(), Some("pol".to_string()))
+        );
+        assert_eq!(
+            parse_subtitle_filename_meta(
+                "Grand.Theft.Auto.VI - Part 2 - 11_Portuguese (Brazil) [por]"
+            ),
+            ("Portuguese (Brazil)".to_string(), Some("por".to_string()))
+        );
+        assert_eq!(
+            parse_subtitle_filename_meta(
+                "Grand.Theft.Auto.VI - 13_Chinese (Simplified) [chi]"
+            ),
+            ("Chinese (Simplified)".to_string(), Some("chi".to_string()))
+        );
+        assert_eq!(
+            parse_subtitle_filename_meta("14_Chinese (Traditional) [chi]"),
+            ("Chinese (Traditional)".to_string(), Some("chi".to_string()))
+        );
+        assert_eq!(
+            parse_subtitle_filename_meta("Russian [rus]"),
+            ("Russian".to_string(), Some("rus".to_string()))
+        );
+        assert_eq!(
+            parse_subtitle_filename_meta("Some.Movie.2026.eng"),
+            ("Some.Movie.2026".to_string(), Some("eng".to_string()))
+        );
+        assert_eq!(
+            parse_subtitle_filename_meta("plain_subtitle"),
+            ("plain_subtitle".to_string(), None)
+        );
+    }
 }
