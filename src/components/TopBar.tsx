@@ -9,6 +9,7 @@ import {
   X,
   Info,
   Globe,
+  RefreshCw,
 } from 'lucide-react';
 import type { MediaInfo, ToolStatus } from '../types/media';
 import { formatBitrate, formatBytes } from '../utils/timecode';
@@ -22,6 +23,10 @@ interface TopBarProps {
   isExporting: boolean;
   isAnalyzing: boolean;
   canExport: boolean;
+  hasUpdateAvailable?: boolean;
+  latestVersion?: string | null;
+  isUpdatingApp?: boolean;
+  onOpenUpdateModal: () => void;
   onImportVideo: () => void;
   onCloseVideo: () => void;
   onOpenDetails: () => void;
@@ -38,6 +43,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   isExporting,
   isAnalyzing,
   canExport,
+  hasUpdateAvailable,
+  latestVersion,
+  isUpdatingApp,
+  onOpenUpdateModal,
   onImportVideo,
   onCloseVideo,
   onOpenDetails,
@@ -59,7 +68,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight text-white">HDRCut</div>
-            <div className="text-[10px] text-zinc-500 font-medium">v1.4.2</div>
+            <div className="text-[10px] text-zinc-500 font-medium">v1.5.0</div>
           </div>
         </div>
 
@@ -138,8 +147,28 @@ export const TopBar: React.FC<TopBarProps> = ({
         )}
       </div>
 
-      {/* Right: Language Switcher + Output Directory + Format Toggle + Export CTA */}
+      {/* Right: Update Button + Language Switcher + Output Directory + Format Toggle + Export CTA */}
       <div className="flex items-center gap-2 shrink-0">
+        <button
+          type="button"
+          onClick={onOpenUpdateModal}
+          className={`relative h-8 w-8 rounded-lg border flex items-center justify-center transition-colors cursor-pointer ${
+            hasUpdateAvailable
+              ? 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-400/50 text-emerald-300'
+              : 'bg-[#141824] hover:bg-[#1a2030] border-white/[0.08] text-zinc-400 hover:text-zinc-100'
+          }`}
+          title={
+            hasUpdateAvailable && latestVersion
+              ? t('upd.topBtnNewVersion', { v: latestVersion })
+              : t('upd.topBtnTitle')
+          }
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isUpdatingApp ? 'animate-spin text-cyan-300' : ''}`} />
+          {hasUpdateAvailable && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-[#0d1017]" />
+          )}
+        </button>
+
         <button
           type="button"
           onClick={toggleLocale}

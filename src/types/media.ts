@@ -6,6 +6,29 @@ export interface ToolStatus {
   libmpv_path: string | null;
 }
 
+export interface UpdateCheckResult {
+  current_version: string;
+  latest_version: string;
+  has_update: boolean;
+  release_name: string;
+  release_notes: string;
+  release_url: string;
+  published_at: string;
+  asset_name: string | null;
+  asset_url: string | null;
+  asset_size: number;
+  can_self_update: boolean;
+  self_update_note: string | null;
+}
+
+export interface UpdateProgressEvent {
+  stage: 'downloading' | 'installing' | 'restarting' | 'error' | 'cancelled';
+  percent: number;
+  downloaded_bytes: number;
+  total_bytes: number;
+  message: string;
+}
+
 export interface VideoStreamInfo {
   stream_index: number;
   codec_name: string;

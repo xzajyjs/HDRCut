@@ -7,6 +7,22 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.5.0] - 2026-11-25
+
+### English
+- **In-App Automatic Updates (macOS & Windows)**:
+  - Automatically checks GitHub Releases (`xzajyjs/HDRCut`) in the background on startup (configurable toggle in the Software Update modal, persisted locally) and supports manual **Check Now** anytime from the top bar.
+  - Detects the latest GitHub release version via SemVer comparison, displays full release notes, and performs hands-free self-updating with live download progress, automatic macOS system proxy detection (`scutil --proxy`), atomic bundle/portable replacement, quarantine cleanup, and automatic app relaunch.
+  - Safely skips automatic installation while an export task is in progress and allows cancelling downloads anytime.
+
+### 中文
+- **应用内全自动更新（macOS & Windows）**：
+  - 支持在「软件更新」面板中开关**启动时后台自动检查并全自动更新**（本地持久化），并可随时从顶部栏一键手动触发检查更新。
+  - 自动连接 GitHub Releases 识别最新版本号并展示完整更新日志；下载带实时进度条（macOS 自动读取系统代理 `scutil --proxy`），支持 macOS `.dmg` 原子替换 `.app` 自动清隔离属性重启、以及 Windows 便携版 `.zip` 自动覆盖并重启。
+  - 导出任务运行期间自动避让不中断作业，下载过程中随时可取消。
+
+---
+
 ## [1.4.2] - 2026-11-25
 
 ### English

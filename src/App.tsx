@@ -16,6 +16,8 @@ import type {
   PlayerStateEvent,
   TabSession,
   ToolStatus,
+  UpdateCheckResult,
+  UpdateProgressEvent,
 } from './types/media';
 import { computeKeptSegments, snapToNearestKeyframe, stepKeyframe } from './utils/segments';
 import { TabBar } from './components/TabBar';
@@ -29,6 +31,7 @@ import { SubtitlePanel } from './components/SubtitlePanel';
 import { ExportProgressBar } from './components/ExportProgressBar';
 import { MediaDetailsModal } from './components/MediaDetailsModal';
 import { LanguageModal } from './components/LanguageModal';
+import { UpdateModal } from './components/UpdateModal';
 import { useI18n } from './i18n';
 
 const INITIAL_PLAYER_STATE: PlayerStateEvent = {
@@ -122,12 +125,32 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
+const APP_VERSION = '1.5.0';
+const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
+
+function loadAutoUpdatePref(): boolean {
+  try {
+    return window.localStorage.getItem(AUTO_UPDATE_STORAGE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
 export function App() {
   const { t, needsLanguageSetup } = useI18n();
   const [toolStatus, setToolStatus] = useState<ToolStatus | null>(null);
   const [isNativeReady, setIsNativeReady] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [skimmingEnabled, setSkimmingEnabled] = useState(false);
+
+  // Auto-update state (background check on startup + manual check + full self-update)
+  const [autoUpdateEnabled, setAutoUpdateEnabled] = useState<boolean>(loadAutoUpdatePref);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateCheckResult, setUpdateCheckResult] = useState<UpdateCheckResult | null>(null);
+  const [updateCheckError, setUpdateCheckError] = useState<string | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgressEvent | null>(null);
+  const autoUpdateTriggeredRef = useRef(false);
 
   // Multi-tab state (each tab holds completely independent video & edit configurations)
   const [tabs, setTabs] = useState<TabSession[]>(() => [createEmptyTab()]);
@@ -206,6 +229,104 @@ export function App() {
   const isExporting = exportProgress?.status === 'running' || isExtracting;
   const isExportingRef = useRef(isExporting);
   isExportingRef.current = isExporting;
+
+  // Auto-Update Actions
+  const handleToggleAutoUpdate = useCallback((enabled: boolean) => {
+    setAutoUpdateEnabled(enabled);
+    try {
+      window.localStorage.setItem(AUTO_UPDATE_STORAGE_KEY, enabled ? 'true' : 'false');
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const handleInstallUpdate = useCallback(async (resOverride?: UpdateCheckResult) => {
+    const target = resOverride ?? updateCheckResult;
+    if (!target || !target.has_update || !target.asset_url || !target.asset_name) return;
+    if (isExportingRef.current) return;
+
+    setUpdateProgress({
+      stage: 'downloading',
+      percent: 0,
+      downloaded_bytes: 0,
+      total_bytes: target.asset_size,
+      message: '0%',
+    });
+
+    try {
+      await invoke('install_app_update', {
+        assetUrl: target.asset_url,
+        assetName: target.asset_name,
+        assetSize: target.asset_size,
+      });
+    } catch (err) {
+      const msg = String(err);
+      if (msg === 'CANCELLED') {
+        setUpdateProgress(null);
+      } else {
+        setUpdateProgress({
+          stage: 'error',
+          percent: 0,
+          downloaded_bytes: 0,
+          total_bytes: target.asset_size,
+          message: msg,
+        });
+      }
+    }
+  }, [updateCheckResult]);
+
+  const handleCancelUpdate = useCallback(() => {
+    invoke('cancel_app_update').catch(() => {});
+  }, []);
+
+  const handleCheckUpdate = useCallback(
+    async (isBackgroundAuto = false) => {
+      setIsCheckingUpdate(true);
+      if (!isBackgroundAuto) {
+        setUpdateCheckError(null);
+      }
+      try {
+        const res = await invoke<UpdateCheckResult>('check_app_update');
+        setUpdateCheckResult(res);
+        setUpdateCheckError(null);
+
+        // Fully automatic download & install when launched with auto-update enabled
+        if (
+          isBackgroundAuto &&
+          res.has_update &&
+          res.can_self_update &&
+          res.asset_url &&
+          res.asset_name &&
+          !isExportingRef.current &&
+          !autoUpdateTriggeredRef.current
+        ) {
+          autoUpdateTriggeredRef.current = true;
+          void handleInstallUpdate(res);
+        }
+      } catch (err) {
+        if (!isBackgroundAuto) {
+          setUpdateCheckError(String(err));
+        }
+      } finally {
+        setIsCheckingUpdate(false);
+      }
+    },
+    [handleInstallUpdate]
+  );
+
+  const handleCheckUpdateRef = useRef(handleCheckUpdate);
+  handleCheckUpdateRef.current = handleCheckUpdate;
+
+  // Startup background auto-check (when auto-update setting is enabled)
+  useEffect(() => {
+    if (!autoUpdateEnabled) return;
+    const timer = window.setTimeout(() => {
+      void handleCheckUpdateRef.current(true);
+    }, 2200);
+    return () => window.clearTimeout(timer);
+    // Run once on startup based on initial preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Helper to update a specific tab (defaults to active tab)
   const updateTab = useCallback((tabId: string, updater: (prev: TabSession) => TabSession) => {
@@ -528,6 +649,7 @@ export function App() {
     let unlistenOpenVideo: (() => void) | undefined;
     let unlistenSelectTab: (() => void) | undefined;
     let unlistenStepTab: (() => void) | undefined;
+    let unlistenUpdateProgress: (() => void) | undefined;
 
     listen<PlayerStateEvent>('mpv-state', (ev) => {
       if (performance.now() < switchGuardUntilRef.current) return;
@@ -579,6 +701,16 @@ export function App() {
       unlistenStepTab = fn;
     });
 
+    listen<UpdateProgressEvent>('update-progress', (ev) => {
+      if (ev.payload.stage === 'cancelled') {
+        setUpdateProgress(null);
+      } else {
+        setUpdateProgress(ev.payload);
+      }
+    }).then((fn) => {
+      unlistenUpdateProgress = fn;
+    });
+
     getCurrentWebview()
       .onDragDropEvent((event) => {
         if (event.payload.type === 'drop' && event.payload.paths.length > 0) {
@@ -599,6 +731,7 @@ export function App() {
       unlistenOpenVideo?.();
       unlistenSelectTab?.();
       unlistenStepTab?.();
+      unlistenUpdateProgress?.();
     };
   }, []);
 
@@ -1437,6 +1570,12 @@ export function App() {
         setShowDetails(false);
         return;
       }
+      if (e.key === 'Escape' && showUpdateModal) {
+        if (updateProgress?.stage !== 'installing' && updateProgress?.stage !== 'restarting') {
+          setShowUpdateModal(false);
+        }
+        return;
+      }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o') {
         e.preventDefault();
@@ -1444,7 +1583,7 @@ export function App() {
         return;
       }
 
-      if (!media || showDetails) return;
+      if (!media || showDetails || showUpdateModal) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -1484,6 +1623,8 @@ export function App() {
   }, [
     media,
     showDetails,
+    showUpdateModal,
+    updateProgress?.stage,
     handleCloseTab,
     handleNewTab,
     handleSelectTabByIndex,
@@ -1688,6 +1829,20 @@ export function App() {
         isExporting={isExporting}
         isAnalyzing={activeTab.isAnalyzing}
         canExport={canExport}
+        hasUpdateAvailable={Boolean(updateCheckResult?.has_update)}
+        latestVersion={updateCheckResult?.latest_version ?? null}
+        isUpdatingApp={
+          isCheckingUpdate ||
+          updateProgress?.stage === 'downloading' ||
+          updateProgress?.stage === 'installing' ||
+          updateProgress?.stage === 'restarting'
+        }
+        onOpenUpdateModal={() => {
+          setShowUpdateModal(true);
+          if (!updateCheckResult && !isCheckingUpdate) {
+            void handleCheckUpdate(false);
+          }
+        }}
         onImportVideo={handleImportVideo}
         onCloseVideo={handleCloseVideoInTab}
         onOpenDetails={() => setShowDetails(true)}
@@ -1705,7 +1860,7 @@ export function App() {
           <VideoViewport
             media={media}
             isNativeReady={isNativeReady}
-            hideNativeView={showDetails || needsLanguageSetup}
+            hideNativeView={showDetails || needsLanguageSetup || showUpdateModal}
             errorMsg={activeTab.playerError}
             onImportVideo={handleImportVideo}
             onTogglePause={handleTogglePause}
@@ -1898,8 +2053,66 @@ export function App() {
         onDismiss={() => setExportProgress(null)}
       />
 
+      {/* Subtle background auto-update status strip when modal is closed */}
+      {!showUpdateModal &&
+        updateProgress &&
+        (updateProgress.stage === 'downloading' ||
+          updateProgress.stage === 'installing' ||
+          updateProgress.stage === 'restarting') && (
+          <div className="h-[34px] shrink-0 px-4 bg-[#0f1726] border-t border-emerald-500/30 flex items-center justify-between gap-3 text-[11px]">
+            <div className="flex items-center gap-2 text-emerald-200 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="truncate">
+                {updateProgress.stage === 'downloading'
+                  ? t('upd.bannerAutoDownloading', {
+                      v: updateCheckResult?.latest_version || '',
+                      p: updateProgress.percent.toFixed(0),
+                    })
+                  : t('upd.bannerInstalling', {
+                      v: updateCheckResult?.latest_version || '',
+                    })}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowUpdateModal(true)}
+                className="h-6 px-2.5 rounded bg-white/[0.08] hover:bg-white/[0.15] text-zinc-100 cursor-pointer"
+              >
+                {t('upd.bannerView')}
+              </button>
+              {updateProgress.stage === 'downloading' && (
+                <button
+                  type="button"
+                  onClick={handleCancelUpdate}
+                  className="h-6 px-2.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 cursor-pointer"
+                >
+                  {t('upd.cancel')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
       {/* PotPlayer-style Media Details Modal (native video view auto-hidden while open) */}
       <MediaDetailsModal media={media} open={showDetails} onClose={() => setShowDetails(false)} />
+
+      {/* Software Update & Auto-Update Settings Modal */}
+      <UpdateModal
+        open={showUpdateModal}
+        currentVersion={updateCheckResult?.current_version || APP_VERSION}
+        autoUpdateEnabled={autoUpdateEnabled}
+        isChecking={isCheckingUpdate}
+        checkResult={updateCheckResult}
+        checkError={updateCheckError}
+        progress={updateProgress}
+        isBusyExporting={isExporting}
+        onClose={() => setShowUpdateModal(false)}
+        onToggleAutoUpdate={handleToggleAutoUpdate}
+        onCheckNow={() => void handleCheckUpdate(false)}
+        onInstallNow={() => void handleInstallUpdate()}
+        onCancelInstall={handleCancelUpdate}
+      />
 
       {/* First-Launch Language Selection Modal (English / 简体中文) */}
       <LanguageModal open={needsLanguageSetup} />

@@ -8,6 +8,7 @@ mod mpv_mac_gl;
 mod mpv_player;
 #[cfg(not(target_os = "macos"))]
 mod mpv_view;
+mod updater;
 
 use bins::{check_tool_status, ToolStatus};
 use exporter::{
@@ -22,10 +23,14 @@ use mpv_player::MpvPlayer;
 use std::sync::Arc;
 use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, State, WebviewWindow};
+use updater::{
+    check_for_updates, download_and_install_update, UpdateCheckResult, UpdaterState,
+};
 
 pub struct AppState {
     pub player: Arc<MpvPlayer>,
     pub exporter: Arc<ExportManager>,
+    pub updater: Arc<UpdaterState>,
 }
 
 #[tauri::command]
@@ -247,11 +252,38 @@ fn reveal_in_folder(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn check_app_update() -> Result<UpdateCheckResult, String> {
+    check_for_updates().await
+}
+
+#[tauri::command]
+async fn install_app_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    asset_url: String,
+    asset_name: String,
+    asset_size: u64,
+) -> Result<(), String> {
+    let player = state.player.clone();
+    let updater = state.updater.clone();
+    download_and_install_update(app, &updater, asset_url, asset_name, asset_size, move || {
+        player.shutdown();
+    })
+    .await
+}
+
+#[tauri::command]
+fn cancel_app_update(state: State<'_, AppState>) {
+    state.updater.cancel();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_state = AppState {
         player: Arc::new(MpvPlayer::new()),
         exporter: Arc::new(ExportManager::new()),
+        updater: Arc::new(UpdaterState::new()),
     };
 
     let player_for_close = app_state.player.clone();
@@ -289,6 +321,9 @@ pub fn run() {
             start_export,
             cancel_export,
             reveal_in_folder,
+            check_app_update,
+            install_app_update,
+            cancel_app_update,
         ])
         .setup(|app| {
             // Build native menu so Cmd+W closes the active tab (not the entire window!)
