@@ -203,6 +203,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -210,7 +212,7 @@ jobs:
           path: release-artifacts
           merge-multiple: true
 
-      - name: Resolve release tag & extract CHANGELOG notes
+      - name: Resolve release tag & aggregate bilingual CHANGELOG since previous release
         id: meta
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
@@ -222,32 +224,102 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
           python3 - "$TAG" "${GITHUB_REPOSITORY}" <<'PY'
-          import re, sys
+          import re, subprocess, sys
+
           tag = sys.argv[1]
           repo = sys.argv[2]
-          ver = tag.lstrip("v")
+
+          def parse_ver(s):
+              s = s.strip().lstrip("vV").split("-")[0].split("+")[0]
+              parts = s.split(".")
+              if len(parts) < 1 or not all(p.isdigit() for p in parts[:3]):
+                  return None
+              nums = [int(p) for p in parts[:3]]
+              while len(nums) < 3:
+                  nums.append(0)
+              return tuple(nums)
+
+          cur_ver = parse_ver(tag)
+          cur_ver_str = tag.lstrip("vV")
+
+          # Find the latest existing git release tag strictly older than cur_ver
+          tags_out = subprocess.check_output(["git", "tag", "--list", "v*"], text=True)
+          older_tags = []
+          for t in tags_out.splitlines():
+              v = parse_ver(t)
+              if v is not None and cur_ver is not None and v < cur_ver:
+                  older_tags.append((v, t.strip()))
+          older_tags.sort(reverse=True)
+          prev_ver, prev_tag = older_tags[0] if older_tags else (None, None)
 
           text = open("CHANGELOG.md", encoding="utf-8").read()
-          pattern = re.compile(
-              rf"^## \[{re.escape(ver)}\][^\n]*\n(.*?)(?=^---|\n## \[|\Z)",
+          sec_re = re.compile(
+              r"^## \[([^\]]+)\](?:\s*-\s*([^\n]+))?\n(.*?)(?=^---|\n## \[|\Z)",
               re.MULTILINE | re.DOTALL,
           )
-          m = pattern.search(text)
-          if m and m.group(1).strip():
-              body = m.group(1).strip()
-          else:
-              body = f"Release {tag}"
+
+          matched = []
+          for m in sec_re.finditer(text):
+              ver_str = m.group(1).strip()
+              date_str = (m.group(2) or "").strip()
+              body = m.group(3).strip()
+              v = parse_ver(ver_str)
+              if v is None or cur_ver is None:
+                  continue
+              if prev_ver is not None:
+                  if prev_ver < v <= cur_ver:
+                      matched.append((v, ver_str, date_str, body))
+              else:
+                  if v == cur_ver:
+                      matched.append((v, ver_str, date_str, body))
+
+          matched.sort(key=lambda item: item[0], reverse=True)
+
+          def split_lang(body):
+              en_m = re.search(r"^### English\s*\n(.*?)(?=^### |\Z)", body, re.MULTILINE | re.DOTALL)
+              zh_m = re.search(r"^### 中文\s*\n(.*?)(?=^### |\Z)", body, re.MULTILINE | re.DOTALL)
+              return (
+                  en_m.group(1).strip() if en_m else "",
+                  zh_m.group(1).strip() if zh_m else "",
+              )
+
+          en_blocks = []
+          zh_blocks = []
+          fallback_blocks = []
+          multi = len(matched) > 1
+
+          for _, ver_str, date_str, body in matched:
+              en_txt, zh_txt = split_lang(body)
+              heading = f"#### v{ver_str}" + (f" ({date_str})" if date_str else "")
+              if en_txt or zh_txt:
+                  if en_txt:
+                      en_blocks.append(f"{heading}\n{en_txt}" if multi else en_txt)
+                  if zh_txt:
+                      zh_blocks.append(f"{heading}\n{zh_txt}" if multi else zh_txt)
+              else:
+                  fallback_blocks.append(f"{heading}\n{body}" if multi else body)
+
+          parts = []
+          if prev_tag and multi:
+              parts.append(f"> Includes all updates from **{prev_tag}** to **{tag}** / 包含自 **{prev_tag}** 至 **{tag}** 期间的全部更新")
+
+          if en_blocks:
+              parts.append("### English\n\n" + "\n\n".join(en_blocks))
+          if zh_blocks:
+              parts.append("### 中文\n\n" + "\n\n".join(zh_blocks))
+          if not en_blocks and not zh_blocks:
+              parts.append("\n\n".join(fallback_blocks) if fallback_blocks else f"Release {tag}")
 
           footer = (
               "\n\n---\n\n"
               "### Downloads / 安装包说明\n"
-              f"- **macOS (Apple Silicon arm64)**: `HDRCut-{ver}-macos-arm64.dmg` — self-contained (`libmpv`, `ffmpeg`, `ffprobe` bundled). If Gatekeeper warns on first launch, run `xattr -cr /Applications/HDRCut.app`.\n"
-              f"- **Windows (x64 Portable)**: `HDRCut-{ver}-windows-x64-portable.zip` — extract and run `HDRCut.exe` directly.\n\n"
+              f"- **macOS (Apple Silicon arm64)**: `HDRCut-{cur_ver_str}-macos-arm64.dmg` — self-contained (`libmpv`, `ffmpeg`, `ffprobe` bundled). If Gatekeeper warns on first launch, run `xattr -cr /Applications/HDRCut.app`.\n"
+              f"- **Windows (x64 Portable)**: `HDRCut-{cur_ver_str}-windows-x64-portable.zip` — extract and run `HDRCut.exe` directly.\n\n"
               f"> 📜 Full release history / 查看所有历史版本更新日志: [CHANGELOG.md](https://github.com/{repo}/blob/main/CHANGELOG.md)\n"
           )
 
           with open("release-notes.md", "w", encoding="utf-8") as f:
-              f.write(body + footer)
+              f.write("\n\n".join(parts) + footer)
           PY
           cat release-notes.md
 
