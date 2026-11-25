@@ -7,6 +7,25 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.6.2] - 2026-11-25
+
+### English
+- **Top-Left Floating Toast Notifications**:
+  - Moved the floating rounded-rectangle notification cards (export, extraction, project save/load, errors, and background auto-update) to the **top-left corner** with a crisp, compact emerald-green design kept cleanly inside the top chrome bar so it is immediately noticeable and never occluded by the native `libmpv` video surface.
+- **One-Click Batch Subtitle Time Offset (Embedded & External)**:
+  - Added a **Batch Offset** control bar to the Subtitle panel header allowing one-click relative nudges (`-0.5s` / `-0.1s` / `+0.1s` / `+0.5s`), setting all checked subtitles to a specific offset value in one click, and **Reset All** to `0s` — with instant live preview sync and full Global Undo/Redo support.
+  - Added a quick **Apply to All Checked** icon button on individual subtitle rows so you can fine-tune one subtitle against the video and copy that exact offset to all checked subtitles in one click.
+  - Extended lossless `-itsoffset` subtitle offset export support to embedded (internal) subtitles in addition to external subtitle files.
+
+### 中文
+- **浮窗提醒移至左上角更醒目**：
+  - 将导出、提取、项目保存/加载、错误提示与后台自动更新的圆角矩形弹窗提醒移至窗口**左上角**，保持翠绿视觉配色与紧凑双行高度（严格位于顶部栏区域内，既一眼可见又永不被原生 `libmpv` 视频画面遮挡）。
+- **字幕时间偏移支持一键批量操作（内封与外挂均支持）**：
+  - 字幕管理顶部新增「批量偏移」工具栏，支持对全部已勾选字幕一键相对微调（`-0.5` / `-0.1` / `+0.1` / `+0.5` 秒）、一键统一设为指定偏移秒数、以及「全部归零」，并实时联动当前预览画面且支持全局撤销/重做。
+  - 单条字幕偏移栏新增「应用到全部已选字幕」快捷图标，调好一条字幕后再点一下即可同步给所有已选字幕；同时为内封字幕也补齐了无损 `-itsoffset` 偏移导出支持。
+
+---
+
 ## [1.6.1] - 2026-11-25
 
 ### English

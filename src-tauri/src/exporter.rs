@@ -254,10 +254,13 @@ impl ExportManager {
         ];
 
         let mut progress_base_pct = 0.0_f64;
+        // Reusable input flags for duplicating input 0 with `-itsoffset` when an internal subtitle has a delay offset
+        let mut primary_input_args: Vec<String> = Vec::new();
 
         if req.is_full_file {
-            args.push("-i".into());
-            args.push(req.input_path.clone());
+            primary_input_args.push("-i".into());
+            primary_input_args.push(req.input_path.clone());
+            args.extend(primary_input_args.clone());
         } else if use_smart_cut {
             // Collect keyframes (use fast index if provided, or probe locally near cut boundaries)
             let mut keyframes = req.keyframes.clone();
@@ -381,23 +384,25 @@ impl ExportManager {
                 .map_err(|e| format!("写入智能剪辑分段清单失败: {e}"))?;
             temp_files.push(concat_path.clone());
 
-            args.push("-f".into());
-            args.push("concat".into());
-            args.push("-safe".into());
-            args.push("0".into());
-            args.push("-auto_convert".into());
-            args.push("1".into());
-            args.push("-i".into());
-            args.push(concat_path.to_string_lossy().to_string());
+            primary_input_args.push("-f".into());
+            primary_input_args.push("concat".into());
+            primary_input_args.push("-safe".into());
+            primary_input_args.push("0".into());
+            primary_input_args.push("-auto_convert".into());
+            primary_input_args.push("1".into());
+            primary_input_args.push("-i".into());
+            primary_input_args.push(concat_path.to_string_lossy().to_string());
+            args.extend(primary_input_args.clone());
         } else if req.kept_segments.len() == 1 {
             // Single kept range (keyframe-only mode): direct fast input seeking with zero temp file!
             let seg = &req.kept_segments[0];
             if seg.start > 0.005 {
-                args.push("-ss".into());
-                args.push(format!("{:.6}", seg.start));
+                primary_input_args.push("-ss".into());
+                primary_input_args.push(format!("{:.6}", seg.start));
             }
-            args.push("-i".into());
-            args.push(req.input_path.clone());
+            primary_input_args.push("-i".into());
+            primary_input_args.push(req.input_path.clone());
+            args.extend(primary_input_args.clone());
             let seg_dur = (seg.end - seg.start).max(0.05);
             if seg.end < req.total_source_duration - 0.1 {
                 args.push("-t".into());
@@ -422,14 +427,15 @@ impl ExportManager {
                 .map_err(|e| format!("写入剪辑分段清单失败: {e}"))?;
             temp_files.push(concat_path.clone());
 
-            args.push("-f".into());
-            args.push("concat".into());
-            args.push("-safe".into());
-            args.push("0".into());
-            args.push("-auto_convert".into());
-            args.push("1".into());
-            args.push("-i".into());
-            args.push(concat_path.to_string_lossy().to_string());
+            primary_input_args.push("-f".into());
+            primary_input_args.push("concat".into());
+            primary_input_args.push("-safe".into());
+            primary_input_args.push("0".into());
+            primary_input_args.push("-auto_convert".into());
+            primary_input_args.push("1".into());
+            primary_input_args.push("-i".into());
+            primary_input_args.push(concat_path.to_string_lossy().to_string());
+            args.extend(primary_input_args.clone());
         }
 
         // Register extra inputs:
@@ -487,8 +493,12 @@ impl ExportManager {
         }
 
         let mut ext_sub_input_indices: Vec<Option<usize>> = Vec::new();
+        let mut int_sub_input_indices: Vec<Option<usize>> = Vec::new();
+        let mut int_sub_offset_cache: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         for sub in &req.subtitle_tracks {
             if sub.source_kind == "external" {
+                int_sub_input_indices.push(None);
                 if let Some(ref fp) = sub.file_path {
                     if Path::new(fp).is_file() {
                         if sub.delay_sec.abs() > 0.001 {
@@ -502,8 +512,27 @@ impl ExportManager {
                         continue;
                     }
                 }
+                ext_sub_input_indices.push(None);
+            } else {
+                ext_sub_input_indices.push(None);
+                if sub.delay_sec.abs() > 0.001 && !primary_input_args.is_empty() {
+                    let key = format!("{:.3}", sub.delay_sec);
+                    let in_idx = if let Some(&existing) = int_sub_offset_cache.get(&key) {
+                        existing
+                    } else {
+                        args.push("-itsoffset".into());
+                        args.push(key.clone());
+                        args.extend(primary_input_args.clone());
+                        let idx = next_input_idx;
+                        next_input_idx += 1;
+                        int_sub_offset_cache.insert(key, idx);
+                        idx
+                    };
+                    int_sub_input_indices.push(Some(in_idx));
+                } else {
+                    int_sub_input_indices.push(None);
+                }
             }
-            ext_sub_input_indices.push(None);
         }
 
         // Build filter_complex if any mixed audio tracks are requested
@@ -678,7 +707,8 @@ impl ExportManager {
                     let Some(s_idx) = sub.subtitle_index else {
                         continue;
                     };
-                    format!("0:s:{s_idx}")
+                    let in_idx = int_sub_input_indices.get(pos).copied().flatten().unwrap_or(0);
+                    format!("{in_idx}:s:{s_idx}")
                 };
 
                 let c = sub.codec_name.to_lowercase();

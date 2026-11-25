@@ -33,90 +33,79 @@ export const ExportProgressBar: React.FC<ExportProgressBarProps> = ({
 
   return (
     <div
-      className={`pointer-events-auto w-full rounded-2xl border backdrop-blur-md shadow-2xl shadow-black/60 p-3.5 text-xs transition-all ${
+      className={`pointer-events-auto w-[420px] max-w-[calc(100vw-24px)] max-h-[78px] rounded-2xl border backdrop-blur-md shadow-2xl shadow-black/75 px-3.5 py-2.5 text-xs transition-all ${
         isDone
-          ? 'bg-[#0b261c]/95 border-emerald-500/45'
+          ? 'bg-[#0b2a1e]/95 border-emerald-400/55 ring-1 ring-emerald-400/20'
           : isError
-          ? 'bg-[#281018]/95 border-rose-500/45'
+          ? 'bg-[#2a1018]/95 border-rose-500/55 ring-1 ring-rose-500/20'
           : isRunning
-          ? 'bg-[#0f1726]/95 border-cyan-500/40'
-          : 'bg-[#141824]/95 border-white/[0.14]'
+          ? 'bg-[#0f1828]/95 border-cyan-400/50 ring-1 ring-cyan-400/20'
+          : 'bg-[#151a26]/95 border-white/[0.16]'
       }`}
     >
-      {/* Header Row: Status Icon + Message + Top-Right Close */}
-      <div className="flex items-start gap-2.5">
-        <div className="pt-0.5 shrink-0">
-          {isRunning && <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />}
-          {isDone && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-          {isError && <AlertTriangle className="w-4 h-4 text-rose-400" />}
-          {progress.status === 'cancelled' && <XCircle className="w-4 h-4 text-zinc-400" />}
-        </div>
+      {/* Row 1: Icon + Single-line Message + Compact Close (stays strictly inside top 88px chrome above native video) */}
+      <div className="flex items-center gap-2 min-w-0 h-5">
+        {isRunning && <Loader2 className="w-4 h-4 animate-spin text-cyan-400 shrink-0" />}
+        {isDone && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+        {isError && <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />}
+        {progress.status === 'cancelled' && <XCircle className="w-4 h-4 text-zinc-400 shrink-0" />}
 
-        <div className="flex-1 min-w-0 space-y-1">
-          <div className="flex items-start justify-between gap-2">
-            <div
-              className={`font-medium leading-snug break-words ${
-                isDone
-                  ? 'text-emerald-50'
-                  : isError
-                  ? 'text-rose-100'
-                  : 'text-zinc-100'
-              }`}
-              title={progress.message}
-            >
-              {progress.message}
-            </div>
-            {!isRunning && (
-              <button
-                type="button"
-                onClick={onDismiss}
-                className="w-5 h-5 -mt-0.5 -mr-1 rounded-md hover:bg-white/[0.1] text-zinc-400 hover:text-zinc-100 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-                title={t('export.close')}
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
+        <span
+          className={`flex-1 font-medium truncate ${
+            isDone ? 'text-emerald-50' : isError ? 'text-rose-100' : 'text-zinc-100'
+          }`}
+          title={progress.message}
+        >
+          {progress.message}
+        </span>
 
-          {showMeta && (
-            <div className="font-mono-num text-[11px] text-zinc-300/80 flex items-center flex-wrap gap-x-1.5 gap-y-0.5">
-              {hasTiming && (
-                <span>
-                  {formatTimecode(progress.out_time_sec)} / {formatTimecode(progress.expected_duration_sec)}
-                </span>
-              )}
-              {hasTiming && hasBytes && <span className="text-zinc-500">·</span>}
-              {hasBytes && <span>{formatBytes(progress.written_bytes)}</span>}
-              {(hasTiming || hasBytes) && hasSpeed && <span className="text-zinc-500">·</span>}
-              {hasSpeed && <span className="text-cyan-300/90">{progress.speed}</span>}
-            </div>
-          )}
-        </div>
+        {!isRunning && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="w-5 h-5 -mr-1 rounded-md hover:bg-white/[0.12] text-zinc-300 hover:text-white flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            title={t('export.close')}
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
-      {/* Progress Bar when running */}
-      {isRunning && (
-        <div className="mt-2.5 flex items-center gap-2.5 pl-6">
-          <div className="flex-1 h-1.5 rounded-full bg-white/[0.1] overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-200"
-              style={{ width: `${Math.max(2, Math.min(100, progress.percent))}%` }}
-            />
-          </div>
-          <span className="font-mono-num text-[11px] font-semibold text-cyan-300 w-9 text-right shrink-0">
-            {progress.percent.toFixed(0)}%
-          </span>
+      {/* Row 2: Progress / Meta on Left + Action Buttons on Right */}
+      <div className="mt-2 flex items-center justify-between gap-2.5 h-7">
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          {isRunning ? (
+            <>
+              <div className="flex-1 h-1.5 rounded-full bg-white/[0.1] overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 transition-all duration-200"
+                  style={{ width: `${Math.max(2, Math.min(100, progress.percent))}%` }}
+                />
+              </div>
+              <span className="font-mono-num text-[11px] font-semibold text-cyan-300 shrink-0">
+                {progress.percent.toFixed(0)}%
+              </span>
+            </>
+          ) : showMeta ? (
+            <span className="font-mono-num text-[11px] text-emerald-200/80 truncate">
+              {hasTiming &&
+                `${formatTimecode(progress.out_time_sec)} / ${formatTimecode(progress.expected_duration_sec)}`}
+              {hasTiming && hasBytes ? ' · ' : ''}
+              {hasBytes ? formatBytes(progress.written_bytes) : ''}
+              {(hasTiming || hasBytes) && hasSpeed ? ' · ' : ''}
+              {hasSpeed ? progress.speed : ''}
+            </span>
+          ) : (
+            <span />
+          )}
         </div>
-      )}
 
-      {/* Action Buttons Row */}
-      {(isDone || (isRunning && canCancel) || isError || progress.status === 'cancelled') && (
-        <div className="mt-3 pl-6 flex items-center justify-end gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {isRunning && canCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="h-7 px-3 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 font-medium cursor-pointer transition-colors"
+              className="h-7 px-2.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 font-medium cursor-pointer transition-colors"
             >
               {t('export.cancel')}
             </button>
@@ -135,13 +124,13 @@ export const ExportProgressBar: React.FC<ExportProgressBarProps> = ({
             <button
               type="button"
               onClick={onDismiss}
-              className="h-7 px-2.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] text-[11px] text-zinc-200 cursor-pointer transition-colors"
+              className="h-7 px-2.5 rounded-lg bg-white/[0.09] hover:bg-white/[0.16] text-[11px] text-zinc-200 cursor-pointer transition-colors"
             >
               {t('export.close')}
             </button>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

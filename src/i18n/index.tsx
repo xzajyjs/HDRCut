@@ -214,6 +214,13 @@ const zh = {
   'sub.offsetLater': '延后 {s} 秒',
   'sub.offsetInputTitle': '手动输入偏移秒数 (+ 延后 / - 提前)',
   'sub.offsetResetTitle': '重置偏移为 0 秒',
+  'sub.batchOffsetLabel': '批量偏移 (已选 {n})',
+  'sub.batchOffsetTitle': '对所有已勾选字幕一键批量调整时间偏移（+ 延后 / - 提前）',
+  'sub.batchOffsetApply': '设为',
+  'sub.batchOffsetApplyTitle': '将全部已勾选字幕的偏移一键统一设为当前输入值',
+  'sub.batchOffsetReset': '全部归零',
+  'sub.batchOffsetResetTitle': '将全部已勾选字幕的偏移重置为 0 秒',
+  'sub.applyToAllCheckedTitle': '将此偏移 ({s}s) 一键应用到全部已选字幕',
 
   // MediaDetailsModal
   'details.title': '媒体文件详细属性',
@@ -567,6 +574,13 @@ const en: Record<TranslationKey, string> = {
   'sub.offsetLater': 'Later by {s}s',
   'sub.offsetInputTitle': 'Subtitle offset in seconds (+ delay / - advance)',
   'sub.offsetResetTitle': 'Reset offset to 0s',
+  'sub.batchOffsetLabel': 'Batch Offset ({n} checked)',
+  'sub.batchOffsetTitle': 'Batch shift or set subtitle time offset for all checked subtitles (+ delay / - advance)',
+  'sub.batchOffsetApply': 'Apply',
+  'sub.batchOffsetApplyTitle': 'Set all checked subtitles to this exact offset',
+  'sub.batchOffsetReset': 'Reset All',
+  'sub.batchOffsetResetTitle': 'Reset offset of all checked subtitles to 0s',
+  'sub.applyToAllCheckedTitle': 'Apply this offset ({s}s) to all checked subtitles',
 
   // MediaDetailsModal
   'details.title': 'Media Properties',

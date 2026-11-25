@@ -134,7 +134,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.6.1';
+const APP_VERSION = '1.6.2';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 const MAX_HISTORY_STEPS = 80;
 
@@ -2251,6 +2251,59 @@ export function App() {
     [activeTab.subtitleTracks, playerState.sid, recordHistory, updateActiveTab]
   );
 
+  const handleBatchShiftSubtitles = useCallback(
+    (deltaSec: number) => {
+      const checked = activeTab.subtitleTracks.filter((s) => s.enabled);
+      if (checked.length === 0) return;
+      recordHistory('sub-batch-delay');
+      let updatedActiveDelay: number | null = null;
+      updateActiveTab((prev) => ({
+        ...prev,
+        subtitleTracks: prev.subtitleTracks.map((s) => {
+          if (!s.enabled) return s;
+          const next = Math.max(
+            -3600,
+            Math.min(3600, Math.round(((s.delay_sec || 0) + deltaSec) * 100) / 100)
+          );
+          if (s.mpv_sid === prev.playerState.sid) {
+            updatedActiveDelay = next;
+          }
+          return { ...s, delay_sec: next };
+        }),
+      }));
+      const previewed = checked.find((s) => s.mpv_sid === playerState.sid);
+      if (previewed) {
+        const nextVal =
+          updatedActiveDelay ??
+          Math.max(
+            -3600,
+            Math.min(3600, Math.round(((previewed.delay_sec || 0) + deltaSec) * 100) / 100)
+          );
+        invoke('player_set_sub_delay', { seconds: nextVal }).catch(() => {});
+      }
+    },
+    [activeTab.subtitleTracks, playerState.sid, recordHistory, updateActiveTab]
+  );
+
+  const handleBatchSetSubtitlesDelay = useCallback(
+    (delaySec: number) => {
+      const checked = activeTab.subtitleTracks.filter((s) => s.enabled);
+      if (checked.length === 0) return;
+      const clamped = Math.max(-3600, Math.min(3600, Math.round(delaySec * 100) / 100));
+      recordHistory();
+      updateActiveTab((prev) => ({
+        ...prev,
+        subtitleTracks: prev.subtitleTracks.map((s) =>
+          s.enabled ? { ...s, delay_sec: clamped } : s
+        ),
+      }));
+      if (checked.some((s) => s.mpv_sid === playerState.sid)) {
+        invoke('player_set_sub_delay', { seconds: clamped }).catch(() => {});
+      }
+    },
+    [activeTab.subtitleTracks, playerState.sid, recordHistory, updateActiveTab]
+  );
+
   const handleSetDefaultSubtitle = useCallback(
     (id: string) => {
       recordHistory();
@@ -3072,6 +3125,8 @@ export function App() {
                 onUpdateSubtitle={handleUpdateSubtitle}
                 onToggleAllSubtitles={handleToggleAllSubtitles}
                 onSetSubtitleDelay={handleSetSubtitleDelay}
+                onBatchShiftSubtitles={handleBatchShiftSubtitles}
+                onBatchSetSubtitlesDelay={handleBatchSetSubtitlesDelay}
                 onSetDefaultSubtitle={handleSetDefaultSubtitle}
                 onDeleteSubtitle={handleDeleteSubtitle}
                 onDeleteCheckedSubtitles={handleDeleteCheckedSubtitles}
@@ -3108,14 +3163,14 @@ export function App() {
         onUpdateRange={handleUpdateRange}
       />
 
-      {/* Top-Right Floating Toast Notifications (export, extraction, project, background update) */}
+      {/* Top-Left Floating Rounded Toast Notifications (strictly inside top 88px chrome above native video) */}
       {(exportProgress ||
         (!showUpdateModal &&
           updateProgress &&
           (updateProgress.stage === 'downloading' ||
             updateProgress.stage === 'installing' ||
             updateProgress.stage === 'restarting'))) && (
-        <div className="fixed top-[96px] right-3.5 z-40 w-[358px] max-w-[calc(100vw-28px)] flex flex-col gap-2.5 pointer-events-none">
+        <div className="fixed top-1.5 left-3 z-50 flex items-start gap-2.5 max-w-[calc(100vw-24px)] pointer-events-none">
           <ExportProgressBar
             progress={exportProgress}
             canCancel={!isLoadingProject}
@@ -3129,10 +3184,10 @@ export function App() {
             (updateProgress.stage === 'downloading' ||
               updateProgress.stage === 'installing' ||
               updateProgress.stage === 'restarting') && (
-              <div className="pointer-events-auto w-full rounded-2xl border border-emerald-500/45 bg-[#0b261c]/95 backdrop-blur-md shadow-2xl shadow-black/60 p-3.5 text-xs space-y-2.5">
-                <div className="flex items-start gap-2.5 text-emerald-50">
-                  <span className="w-2 h-2 mt-1 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                  <span className="font-medium leading-snug break-words">
+              <div className="pointer-events-auto w-[370px] max-w-[calc(100vw-24px)] max-h-[78px] rounded-2xl border border-emerald-400/55 ring-1 ring-emerald-400/20 bg-[#0b2a1e]/95 backdrop-blur-md shadow-2xl shadow-black/75 px-3.5 py-2.5 text-xs">
+                <div className="flex items-center gap-2 text-emerald-50 h-5 min-w-0">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="font-medium truncate">
                     {updateProgress.stage === 'downloading'
                       ? t('upd.bannerAutoDownloading', {
                           v: updateCheckResult?.latest_version || '',
@@ -3143,33 +3198,35 @@ export function App() {
                         })}
                   </span>
                 </div>
-                {updateProgress.stage === 'downloading' && (
-                  <div className="pl-4.5">
-                    <div className="h-1.5 rounded-full bg-white/[0.1] overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-200"
-                        style={{ width: `${Math.max(2, Math.min(100, updateProgress.percent))}%` }}
-                      />
-                    </div>
+                <div className="mt-2 flex items-center justify-between gap-2.5 h-7">
+                  <div className="flex-1 min-w-0">
+                    {updateProgress.stage === 'downloading' && (
+                      <div className="h-1.5 rounded-full bg-white/[0.1] overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-200"
+                          style={{ width: `${Math.max(2, Math.min(100, updateProgress.percent))}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowUpdateModal(true)}
-                    className="h-7 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-semibold cursor-pointer transition-colors"
-                  >
-                    {t('upd.bannerView')}
-                  </button>
-                  {updateProgress.stage === 'downloading' && (
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       type="button"
-                      onClick={handleCancelUpdate}
-                      className="h-7 px-2.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 cursor-pointer transition-colors"
+                      onClick={() => setShowUpdateModal(true)}
+                      className="h-7 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-semibold cursor-pointer transition-colors"
                     >
-                      {t('upd.cancel')}
+                      {t('upd.bannerView')}
                     </button>
-                  )}
+                    {updateProgress.stage === 'downloading' && (
+                      <button
+                        type="button"
+                        onClick={handleCancelUpdate}
+                        className="h-7 px-2.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 cursor-pointer transition-colors"
+                      >
+                        {t('upd.cancel')}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
