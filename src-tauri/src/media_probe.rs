@@ -528,7 +528,7 @@ pub async fn probe_media(file_path: &str) -> Result<MediaInfo, String> {
                         sample_rate,
                         bit_rate: a_bitrate,
                         language: tag_str("language"),
-                        title: tag_str("title"),
+                        title: extract_track_title(tags),
                         is_default,
                     });
                 }
@@ -553,7 +553,7 @@ pub async fn probe_media(file_path: &str) -> Result<MediaInfo, String> {
                         codec_name,
                         codec_long_name,
                         language: tag_str("language"),
-                        title: tag_str("title"),
+                        title: extract_track_title(tags),
                         is_default,
                         is_forced,
                     });
@@ -671,10 +671,7 @@ pub async fn probe_external_audio(file_path: &str) -> Result<ExternalAudioInfo, 
         .and_then(|t| t.get("language"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
-    let title = tags
-        .and_then(|t| t.get("title"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+    let title = extract_track_title(tags);
 
     Ok(ExternalAudioInfo {
         file_path: file_path.to_string(),
@@ -688,6 +685,58 @@ pub async fn probe_external_audio(file_path: &str) -> Result<ExternalAudioInfo, 
         title,
         duration,
     })
+}
+
+fn is_generic_mp4_handler_name(s: &str) -> bool {
+    let lower = s.trim().to_lowercase();
+    if lower.is_empty() {
+        return true;
+    }
+    matches!(
+        lower.as_str(),
+        "soundhandler"
+            | "subtitlehandler"
+            | "videohandler"
+            | "core media audio"
+            | "core media subtitle"
+            | "core media video"
+            | "core media closed caption"
+            | "gpac iso audio handler"
+            | "gpac iso subtitle handler"
+            | "gpac iso video handler"
+            | "bento4 sound handler"
+            | "bento4 subtitle handler"
+            | "l-smash audio handler"
+            | "l-smash subtitle handler"
+            | "mainconcept mp4 sound media handler"
+            | "mainconcept mp4 video media handler"
+    ) || lower.starts_with("iso media file produced by")
+}
+
+/// Extracts a human-readable track title across MKV (`title`) and MP4/MOV (`name`, `handler_name`),
+/// ignoring generic MP4 muxer placeholders like `SoundHandler` / `SubtitleHandler`.
+pub fn extract_track_title(tags: Option<&Value>) -> Option<String> {
+    let tags = tags?;
+    let get_tag = |k: &str| -> Option<String> {
+        tags.get(k)
+            .or_else(|| tags.get(&k.to_uppercase()))
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    };
+
+    if let Some(t) = get_tag("title") {
+        return Some(t);
+    }
+    if let Some(n) = get_tag("name") {
+        return Some(n);
+    }
+    if let Some(h) = get_tag("handler_name") {
+        if !is_generic_mp4_handler_name(&h) {
+            return Some(h);
+        }
+    }
+    None
 }
 
 fn is_known_lang_code(code: &str) -> bool {
@@ -918,7 +967,39 @@ pub async fn probe_keyframes_near(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_subtitle_filename_meta;
+    use super::{extract_track_title, parse_subtitle_filename_meta};
+    use serde_json::json;
+
+    #[test]
+    fn test_extract_mp4_track_title_fallback() {
+        // MKV standard `title`
+        let mkv_tags = json!({ "title": "English", "language": "eng" });
+        assert_eq!(extract_track_title(Some(&mkv_tags)), Some("English".into()));
+
+        // MP4 `udta/name` + `handler_name` (what ffmpeg writes for MP4 mov_text subtitles)
+        let mp4_tags = json!({
+            "language": "chi",
+            "handler_name": "Chinese (Simplified)",
+            "name": "Chinese (Simplified)"
+        });
+        assert_eq!(
+            extract_track_title(Some(&mp4_tags)),
+            Some("Chinese (Simplified)".into())
+        );
+
+        // MP4 with custom `handler_name` only
+        let hdlr_only = json!({ "handler_name": "Director Commentary" });
+        assert_eq!(
+            extract_track_title(Some(&hdlr_only)),
+            Some("Director Commentary".into())
+        );
+
+        // Generic MP4 muxer placeholders should be ignored -> None
+        let generic_sound = json!({ "handler_name": "SoundHandler" });
+        assert_eq!(extract_track_title(Some(&generic_sound)), None);
+        let generic_sub = json!({ "handler_name": "SubtitleHandler" });
+        assert_eq!(extract_track_title(Some(&generic_sub)), None);
+    }
 
     #[test]
     fn test_parse_subtitle_filename_meta_roundtrip() {

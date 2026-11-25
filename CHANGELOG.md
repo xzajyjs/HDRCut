@@ -7,6 +7,18 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.6.6] - 2026-11-25
+
+### English
+- **Fix MP4 Subtitle & Audio Track Names Disappearing on Re-Import**:
+  - Updated `ffprobe` metadata parsing (`extract_track_title`) to read MP4/MOV `name` (`udta/name`) and custom `handler_name` tags in addition to MKV `title` tags (while filtering out generic muxer placeholders such as `SoundHandler` / `SubtitleHandler`), so exported MP4 files retain all subtitle and audio track names identically when reopened.
+
+### 中文
+- **修复导出 MP4 后重新打开时字幕与音轨名称丢失的问题**：
+  - 完善 `ffprobe` 元数据解析逻辑（`extract_track_title`）：在兼容 MKV 的 `title` 标签基础上，补充读取 MP4/MOV 容器写入的 `name`（`udta/name`）及自定义 `handler_name` 标签（自动过滤 `SoundHandler`、`SubtitleHandler` 等系统占位名），重新打开已导出的 MP4 时将完整还原全部字幕与音轨名称。
+
+---
+
 ## [1.6.5] - 2026-11-25
 
 ### English
