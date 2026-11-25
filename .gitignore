@@ -1,0 +1,59 @@
+# Dependencies & package stores
+node_modules/
+.pnpm-store/
+.npm/
+
+# Frontend build output
+dist/
+dist-ssr/
+*.local
+
+# Rust / Tauri build artifacts
+src-tauri/target/
+src-tauri/gen/schemas/
+src-tauri/WixTools/
+dist-windows/
+dist-windows-deps/
+dist-release/
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Environment variables, secrets & certificates
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.cer
+*.crt
+*.jks
+*.keystore
+secrets/
+
+# Local AI assistant configs, prompts & scratch directories (never commit)
+.gemini/
+.antigravity/
+.claude/
+.cursor/
+.codex/
+.windsurf/
+.aider*
+CLAUDE.md
+GEMINI.md
+AGENTS.md
+.cursorrules
+.windsurfrules
+
+# Logs & temporary files
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+tmp/
+temp/
