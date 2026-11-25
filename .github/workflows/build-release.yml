@@ -213,15 +213,46 @@ jobs:
           path: release-artifacts
           merge-multiple: true
 
-      - name: Resolve release tag
+      - name: Resolve release tag & extract CHANGELOG notes
         id: meta
         run: |
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            TAG="${GITHUB_REF_NAME}"
           else
             VERSION="$(node -p "require('./package.json').version")"
-            echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+            TAG="v${VERSION}"
           fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+          python3 - "$TAG" "${GITHUB_REPOSITORY}" <<'PY'
+          import re, sys
+          tag = sys.argv[1]
+          repo = sys.argv[2]
+          ver = tag.lstrip("v")
+
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          pattern = re.compile(
+              rf"^## \[{re.escape(ver)}\][^\n]*\n(.*?)(?=^---|\n## \[|\Z)",
+              re.MULTILINE | re.DOTALL,
+          )
+          m = pattern.search(text)
+          if m and m.group(1).strip():
+              body = m.group(1).strip()
+          else:
+              body = f"Release {tag}"
+
+          footer = (
+              "\n\n---\n\n"
+              "### 安装包说明 / Downloads\n"
+              f"- **macOS (Apple Silicon arm64)**: `HDRCut-{ver}-macos-arm64.dmg`（内置 `libmpv`、`ffmpeg`、`ffprobe`；首次打开若被安全拦截，可运行 `xattr -cr /Applications/HDRCut.app`）\n"
+              f"- **Windows (x64 Portable)**: `HDRCut-{ver}-windows-x64-portable.zip`（绿色免安装，解压后双击 `HDRCut.exe` 即可运行）\n\n"
+              f"> 📜 查看所有历史版本的完整更新日志：[CHANGELOG.md](https://github.com/{repo}/blob/main/CHANGELOG.md)\n"
+          )
+
+          with open("release-notes.md", "w", encoding="utf-8") as f:
+              f.write(body + footer)
+          PY
+          cat release-notes.md
 
       - name: List release assets
         run: ls -lh release-artifacts
@@ -231,7 +262,8 @@ jobs:
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: HDRCut ${{ steps.meta.outputs.tag }}
-          generate_release_notes: true
+          body_path: release-notes.md
+          generate_release_notes: false
           files: |
             release-artifacts/*.dmg
             release-artifacts/*.zip
