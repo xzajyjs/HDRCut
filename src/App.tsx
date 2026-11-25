@@ -134,7 +134,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 const MAX_HISTORY_STEPS = 80;
 
@@ -3108,54 +3108,73 @@ export function App() {
         onUpdateRange={handleUpdateRange}
       />
 
-      {/* Export / Extract Progress Banner */}
-      <ExportProgressBar
-        progress={exportProgress}
-        onCancel={() => invoke('cancel_export').catch(() => {})}
-        onRevealOutput={(p) => invoke('reveal_in_folder', { path: p }).catch(() => {})}
-        onDismiss={() => setExportProgress(null)}
-      />
+      {/* Top-Right Floating Toast Notifications (export, extraction, project, background update) */}
+      {(exportProgress ||
+        (!showUpdateModal &&
+          updateProgress &&
+          (updateProgress.stage === 'downloading' ||
+            updateProgress.stage === 'installing' ||
+            updateProgress.stage === 'restarting'))) && (
+        <div className="fixed top-[96px] right-3.5 z-40 w-[358px] max-w-[calc(100vw-28px)] flex flex-col gap-2.5 pointer-events-none">
+          <ExportProgressBar
+            progress={exportProgress}
+            canCancel={!isLoadingProject}
+            onCancel={() => invoke('cancel_export').catch(() => {})}
+            onRevealOutput={(p) => invoke('reveal_in_folder', { path: p }).catch(() => {})}
+            onDismiss={() => setExportProgress(null)}
+          />
 
-      {/* Subtle background auto-update status strip when modal is closed */}
-      {!showUpdateModal &&
-        updateProgress &&
-        (updateProgress.stage === 'downloading' ||
-          updateProgress.stage === 'installing' ||
-          updateProgress.stage === 'restarting') && (
-          <div className="h-[34px] shrink-0 px-4 bg-[#0f1726] border-t border-emerald-500/30 flex items-center justify-between gap-3 text-[11px]">
-            <div className="flex items-center gap-2 text-emerald-200 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="truncate">
-                {updateProgress.stage === 'downloading'
-                  ? t('upd.bannerAutoDownloading', {
-                      v: updateCheckResult?.latest_version || '',
-                      p: updateProgress.percent.toFixed(0),
-                    })
-                  : t('upd.bannerInstalling', {
-                      v: updateCheckResult?.latest_version || '',
-                    })}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowUpdateModal(true)}
-                className="h-6 px-2.5 rounded bg-white/[0.08] hover:bg-white/[0.15] text-zinc-100 cursor-pointer"
-              >
-                {t('upd.bannerView')}
-              </button>
-              {updateProgress.stage === 'downloading' && (
-                <button
-                  type="button"
-                  onClick={handleCancelUpdate}
-                  className="h-6 px-2.5 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 cursor-pointer"
-                >
-                  {t('upd.cancel')}
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+          {!showUpdateModal &&
+            updateProgress &&
+            (updateProgress.stage === 'downloading' ||
+              updateProgress.stage === 'installing' ||
+              updateProgress.stage === 'restarting') && (
+              <div className="pointer-events-auto w-full rounded-2xl border border-emerald-500/45 bg-[#0b261c]/95 backdrop-blur-md shadow-2xl shadow-black/60 p-3.5 text-xs space-y-2.5">
+                <div className="flex items-start gap-2.5 text-emerald-50">
+                  <span className="w-2 h-2 mt-1 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <span className="font-medium leading-snug break-words">
+                    {updateProgress.stage === 'downloading'
+                      ? t('upd.bannerAutoDownloading', {
+                          v: updateCheckResult?.latest_version || '',
+                          p: updateProgress.percent.toFixed(0),
+                        })
+                      : t('upd.bannerInstalling', {
+                          v: updateCheckResult?.latest_version || '',
+                        })}
+                  </span>
+                </div>
+                {updateProgress.stage === 'downloading' && (
+                  <div className="pl-4.5">
+                    <div className="h-1.5 rounded-full bg-white/[0.1] overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-200"
+                        style={{ width: `${Math.max(2, Math.min(100, updateProgress.percent))}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowUpdateModal(true)}
+                    className="h-7 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-semibold cursor-pointer transition-colors"
+                  >
+                    {t('upd.bannerView')}
+                  </button>
+                  {updateProgress.stage === 'downloading' && (
+                    <button
+                      type="button"
+                      onClick={handleCancelUpdate}
+                      className="h-7 px-2.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-[11px] text-rose-200 cursor-pointer transition-colors"
+                    >
+                      {t('upd.cancel')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+        </div>
+      )}
 
       {/* PotPlayer-style Media Details Modal (native video view auto-hidden while open) */}
       <MediaDetailsModal media={media} open={showDetails} onClose={() => setShowDetails(false)} />

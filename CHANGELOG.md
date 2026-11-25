@@ -7,6 +7,20 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.6.1] - 2026-11-25
+
+### English
+- **Top-Right Floating Toast Notifications**:
+  - Replaced all bottom full-width status/progress bars (video export, audio/subtitle extraction, project save/load, errors, and background auto-update progress) with sleek floating rounded-rectangle notification cards anchored in the top-right corner, preserving the emerald-green theme for completion states without shifting the timeline layout or overlapping the video viewport.
+  - Automatically hides empty `00:00:00 / 00:00:00 · 0 B` metrics on non-media notifications such as project save/load.
+
+### 中文
+- **所有底部行提示全面升级为右上角圆角矩形浮窗提醒**：
+  - 将原先底部通栏提示条（视频导出、音轨/字幕提取、项目保存/加载、错误提示以及后台自动更新进度条）统一改为右上角悬浮圆角矩形弹窗卡片，保留原有翠绿完成配色，且弹出时不再挤压底部时间轴或遮挡视频画面。
+  - 项目保存/加载等非媒体转码类提示自动隐藏无效的 `00:00:00 / 00:00:00 · 0 B` 占位信息，界面更清爽。
+
+---
+
 ## [1.6.0] - 2026-11-25
 
 ### English

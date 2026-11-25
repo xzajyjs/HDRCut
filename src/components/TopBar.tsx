@@ -105,7 +105,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight text-white">HDRCut</div>
-            <div className="text-[10px] text-zinc-500 font-medium">v1.6.0</div>
+            <div className="text-[10px] text-zinc-500 font-medium">v1.6.1</div>
           </div>
         </div>
 
@@ -227,7 +227,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
 
           {projectMenuOpen && (
-            <div className="absolute right-0 top-[38px] z-40 w-56 p-1.5 rounded-xl bg-[#131824] border border-white/[0.12] shadow-2xl space-y-0.5">
+            <div className="absolute right-0 top-[38px] z-50 w-56 p-1.5 rounded-xl bg-[#131824] border border-white/[0.12] shadow-2xl space-y-0.5">
               <button
                 type="button"
                 onClick={() => {
