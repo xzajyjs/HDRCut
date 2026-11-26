@@ -97,7 +97,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </div>
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight text-white">HDRCut</div>
-            <div className="text-[10px] text-zinc-500 font-medium">v1.7.2</div>
+            <div className="text-[10px] text-zinc-500 font-medium">v1.7.3</div>
           </div>
         </div>
 
@@ -167,10 +167,10 @@ export const TopBar: React.FC<TopBarProps> = ({
             </button>
           </div>
         ) : (
-          <div className="hidden lg:flex items-center gap-2 text-[11px] text-zinc-500">
-            <span>{t('top.supportedFormats')}</span>
+          <div className="hidden lg:flex items-center gap-2 text-[11px] text-zinc-500 min-w-0">
+            <span className="truncate">{t('top.supportedFormats')}</span>
             {toolStatus && !toolStatus.libmpv_available && (
-              <span className="text-amber-400">{t('top.noLibmpv')}</span>
+              <span className="text-amber-400 shrink-0">{t('top.noLibmpv')}</span>
             )}
           </div>
         )}

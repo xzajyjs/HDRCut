@@ -23,6 +23,7 @@ import type {
   UpdateProgressEvent,
 } from './types/media';
 import { computeKeptSegments, snapToNearestKeyframe, stepKeyframe } from './utils/segments';
+import { SUPPORTED_VIDEO_EXTENSIONS, getMediaFormatCapabilities } from './utils/formatCapabilities';
 import {
   applyRelinkDecisions,
   collectProjectMediaRefs,
@@ -136,7 +137,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.7.2';
+const APP_VERSION = '1.7.3';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 const MAX_HISTORY_STEPS = 80;
 
@@ -1070,7 +1071,7 @@ export function App() {
           ? [
               {
                 name: t('dlg.videoFiles'),
-                extensions: ['mkv', 'mp4', 'mov', 'm4v', 'ts', 'm2ts', 'webm', 'avi', 'flv'],
+                extensions: [...SUPPORTED_VIDEO_EXTENSIONS],
               },
             ]
           : target.kind === 'audio'
@@ -1325,6 +1326,7 @@ export function App() {
           delay_sec: 0,
         }));
 
+        const caps = getMediaFormatCapabilities(info);
         recordHistory();
 
         updateTab(targetTabId, (prev) => ({
@@ -1332,11 +1334,16 @@ export function App() {
           media: info,
           isAnalyzing: false,
           playerError: null,
+          activePanelTab:
+            (prev.activePanelTab === 'audio' && !caps.supportsAudioEdit) ||
+            (prev.activePanelTab === 'subtitle' && !caps.supportsSubtitleEdit)
+              ? 'cut'
+              : prev.activePanelTab,
           playerState: {
             ...INITIAL_PLAYER_STATE,
             duration: info.duration,
             paused: true,
-            sid: editableSubs.length > 0 ? editableSubs[0].mpv_sid : 0,
+            sid: caps.supportsSubtitleEdit && editableSubs.length > 0 ? editableSubs[0].mpv_sid : 0,
           },
           ranges: [],
           draftIn: null,
@@ -1402,7 +1409,7 @@ export function App() {
       filters: [
         {
           name: t('dlg.videoFiles'),
-          extensions: ['mkv', 'mp4', 'mov', 'm4v', 'ts', 'm2ts', 'webm', 'avi', 'flv'],
+          extensions: [...SUPPORTED_VIDEO_EXTENSIONS],
         },
       ],
     });
@@ -2841,7 +2848,10 @@ export function App() {
         }
       }
 
-      const enabledSubtitles = activeTab.subtitleTracks.filter((s) => s.enabled);
+      const caps = getMediaFormatCapabilities(media);
+      const enabledSubtitles = caps.supportsSubtitleEdit
+        ? activeTab.subtitleTracks.filter((s) => s.enabled)
+        : [];
 
       const request = {
         input_path: media.file_path,
@@ -2851,31 +2861,35 @@ export function App() {
         is_full_file: isFullFile,
         kept_segments: finalSegments,
         keep_audio_tracks: activeTab.audioTracks
-          .filter((t) => t.enabled && t.source_kind === 'internal')
+          .filter((t) => (caps.supportsAudioEdit ? t.enabled : true) && t.source_kind === 'internal')
           .map((t) => ({
             audio_index: t.audio_index,
             title: t.title.trim() || `音轨 ${t.audio_index + 1}`,
             language: t.language.trim() || null,
             is_default: t.is_default,
           })),
-        external_audio_tracks: activeTab.audioTracks
-          .filter((t) => t.enabled && t.source_kind === 'external' && t.file_path)
-          .map((t) => ({
-            file_path: t.file_path!,
-            title: t.title.trim() || '外部音轨',
-            language: t.language.trim() || null,
-            is_default: t.is_default,
-          })),
-        mixed_audio_tracks: activeTab.mixedTracks
-          .filter((m) => m.enabled && m.source_audio_indices.length >= 2)
-          .map((m) => ({
-            source_audio_indices: m.source_audio_indices,
-            gains_db: m.source_audio_indices.map((idx) => m.gains_db[idx] ?? 0),
-            title: m.title.trim() || '混合音轨',
-            codec: m.codec,
-            normalize: m.normalize,
-            is_default: m.is_default,
-          })),
+        external_audio_tracks: caps.supportsAudioEdit
+          ? activeTab.audioTracks
+              .filter((t) => t.enabled && t.source_kind === 'external' && t.file_path)
+              .map((t) => ({
+                file_path: t.file_path!,
+                title: t.title.trim() || '外部音轨',
+                language: t.language.trim() || null,
+                is_default: t.is_default,
+              }))
+          : [],
+        mixed_audio_tracks: caps.supportsAudioEdit
+          ? activeTab.mixedTracks
+              .filter((m) => m.enabled && m.source_audio_indices.length >= 2)
+              .map((m) => ({
+                source_audio_indices: m.source_audio_indices,
+                gains_db: m.source_audio_indices.map((idx) => m.gains_db[idx] ?? 0),
+                title: m.title.trim() || '混合音轨',
+                codec: m.codec,
+                normalize: m.normalize,
+                is_default: m.is_default,
+              }))
+          : [],
         keep_subtitles: enabledSubtitles.length > 0,
         subtitle_codecs: media.subtitle_tracks.map((s) => s.codec_name),
         subtitle_tracks: enabledSubtitles.map((s) => ({
@@ -2954,7 +2968,10 @@ export function App() {
         updateActiveTab((prev) => ({ ...prev, outputDir: chosenDir }));
       }
 
-      const enabledSubtitles = activeTab.subtitleTracks.filter((s) => s.enabled);
+      const caps = getMediaFormatCapabilities(media);
+      const enabledSubtitles = caps.supportsSubtitleEdit
+        ? activeTab.subtitleTracks.filter((s) => s.enabled)
+        : [];
 
       const request = {
         input_path: media.file_path,
@@ -2964,31 +2981,35 @@ export function App() {
         is_full_file: isFullFile,
         kept_segments: keptSegments,
         keep_audio_tracks: activeTab.audioTracks
-          .filter((tr) => tr.enabled && tr.source_kind === 'internal')
+          .filter((tr) => (caps.supportsAudioEdit ? tr.enabled : true) && tr.source_kind === 'internal')
           .map((tr) => ({
             audio_index: tr.audio_index,
             title: tr.title.trim() || `音轨 ${tr.audio_index + 1}`,
             language: tr.language.trim() || null,
             is_default: tr.is_default,
           })),
-        external_audio_tracks: activeTab.audioTracks
-          .filter((tr) => tr.enabled && tr.source_kind === 'external' && tr.file_path)
-          .map((tr) => ({
-            file_path: tr.file_path!,
-            title: tr.title.trim() || '外部音轨',
-            language: tr.language.trim() || null,
-            is_default: tr.is_default,
-          })),
-        mixed_audio_tracks: activeTab.mixedTracks
-          .filter((m) => m.enabled && m.source_audio_indices.length >= 2)
-          .map((m) => ({
-            source_audio_indices: m.source_audio_indices,
-            gains_db: m.source_audio_indices.map((idx) => m.gains_db[idx] ?? 0),
-            title: m.title.trim() || '混合音轨',
-            codec: m.codec,
-            normalize: m.normalize,
-            is_default: m.is_default,
-          })),
+        external_audio_tracks: caps.supportsAudioEdit
+          ? activeTab.audioTracks
+              .filter((tr) => tr.enabled && tr.source_kind === 'external' && tr.file_path)
+              .map((tr) => ({
+                file_path: tr.file_path!,
+                title: tr.title.trim() || '外部音轨',
+                language: tr.language.trim() || null,
+                is_default: tr.is_default,
+              }))
+          : [],
+        mixed_audio_tracks: caps.supportsAudioEdit
+          ? activeTab.mixedTracks
+              .filter((m) => m.enabled && m.source_audio_indices.length >= 2)
+              .map((m) => ({
+                source_audio_indices: m.source_audio_indices,
+                gains_db: m.source_audio_indices.map((idx) => m.gains_db[idx] ?? 0),
+                title: m.title.trim() || '混合音轨',
+                codec: m.codec,
+                normalize: m.normalize,
+                is_default: m.is_default,
+              }))
+          : [],
         keep_subtitles: advConfig.subtitle_mode !== 'none' && enabledSubtitles.length > 0,
         subtitle_codecs: media.subtitle_tracks.map((s) => s.codec_name),
         subtitle_tracks:
@@ -3042,6 +3063,13 @@ export function App() {
     [media, activeTab, keptSegments, isFullFile, duration, handleSkimEnd, updateActiveTab]
   );
 
+  const formatCaps = useMemo(() => getMediaFormatCapabilities(media), [media]);
+  const effectivePanelTab =
+    (activeTab.activePanelTab === 'audio' && !formatCaps.supportsAudioEdit) ||
+    (activeTab.activePanelTab === 'subtitle' && !formatCaps.supportsSubtitleEdit)
+      ? 'cut'
+      : activeTab.activePanelTab;
+
   const canExport = Boolean(media && keptSegments.length > 0);
   const isBusyWorkspace = isExporting || isLoadingProject;
   const expectedKeptDuration = useMemo(() => {
@@ -3050,13 +3078,18 @@ export function App() {
   }, [isFullFile, duration, keptSegments]);
   const enabledAudioOutputCount = useMemo(
     () =>
-      activeTab.audioTracks.filter((tr) => tr.enabled).length +
-      activeTab.mixedTracks.filter((m) => m.enabled && m.source_audio_indices.length >= 2).length,
-    [activeTab.audioTracks, activeTab.mixedTracks]
+      formatCaps.supportsAudioEdit
+        ? activeTab.audioTracks.filter((tr) => tr.enabled).length +
+          activeTab.mixedTracks.filter((m) => m.enabled && m.source_audio_indices.length >= 2).length
+        : activeTab.audioTracks.filter((tr) => tr.source_kind === 'internal').length,
+    [activeTab.audioTracks, activeTab.mixedTracks, formatCaps.supportsAudioEdit]
   );
   const enabledSubtitleOutputCount = useMemo(
-    () => activeTab.subtitleTracks.filter((s) => s.enabled).length,
-    [activeTab.subtitleTracks]
+    () =>
+      formatCaps.supportsSubtitleEdit
+        ? activeTab.subtitleTracks.filter((s) => s.enabled).length
+        : 0,
+    [activeTab.subtitleTracks, formatCaps.supportsSubtitleEdit]
   );
 
   return (
@@ -3133,8 +3166,8 @@ export function App() {
             isHdrVideo={Boolean(media?.video?.is_hdr)}
             draftIn={activeTab.draftIn}
             draftOut={activeTab.draftOut}
-            audioTracks={activeTab.audioTracks}
-            subtitleTracks={activeTab.subtitleTracks}
+            audioTracks={formatCaps.supportsAudioEdit ? activeTab.audioTracks : []}
+            subtitleTracks={formatCaps.supportsSubtitleEdit ? activeTab.subtitleTracks : []}
             onTogglePause={handleTogglePause}
             onSeek={handleSeek}
             onSeekRelative={handleSeekRelative}
@@ -3157,7 +3190,7 @@ export function App() {
             <button
               onClick={() => updateActiveTab((prev) => ({ ...prev, activePanelTab: 'cut' }))}
               className={`flex-1 h-8 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                activeTab.activePanelTab === 'cut'
+                effectivePanelTab === 'cut'
                   ? 'bg-white/[0.1] text-white'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
               }`}
@@ -3172,33 +3205,64 @@ export function App() {
             </button>
 
             <button
-              onClick={() => updateActiveTab((prev) => ({ ...prev, activePanelTab: 'audio' }))}
-              className={`flex-1 h-8 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                activeTab.activePanelTab === 'audio'
-                  ? 'bg-white/[0.1] text-white'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+              disabled={!formatCaps.supportsAudioEdit}
+              onClick={() => {
+                if (!formatCaps.supportsAudioEdit) return;
+                updateActiveTab((prev) => ({ ...prev, activePanelTab: 'audio' }));
+              }}
+              title={
+                !formatCaps.supportsAudioEdit
+                  ? t('panel.audioUnsupported', { fmt: formatCaps.container })
+                  : undefined
+              }
+              className={`flex-1 h-8 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                !formatCaps.supportsAudioEdit
+                  ? 'text-zinc-600 opacity-45 cursor-not-allowed'
+                  : effectivePanelTab === 'audio'
+                  ? 'bg-white/[0.1] text-white cursor-pointer'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] cursor-pointer'
               }`}
             >
-              <Volume2 className="w-3.5 h-3.5 text-cyan-400" />
+              <Volume2
+                className={`w-3.5 h-3.5 ${
+                  formatCaps.supportsAudioEdit ? 'text-cyan-400' : 'text-zinc-600'
+                }`}
+              />
               <span>{t('panel.audio')}</span>
-              {activeTab.audioTracks.length + activeTab.mixedTracks.length > 0 && (
-                <span className="px-1.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono-num">
-                  {activeTab.audioTracks.length + activeTab.mixedTracks.length}
-                </span>
-              )}
+              {formatCaps.supportsAudioEdit &&
+                activeTab.audioTracks.length + activeTab.mixedTracks.length > 0 && (
+                  <span className="px-1.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono-num">
+                    {activeTab.audioTracks.length + activeTab.mixedTracks.length}
+                  </span>
+                )}
             </button>
 
             <button
-              onClick={() => updateActiveTab((prev) => ({ ...prev, activePanelTab: 'subtitle' }))}
-              className={`flex-1 h-8 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                activeTab.activePanelTab === 'subtitle'
-                  ? 'bg-white/[0.1] text-white'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+              disabled={!formatCaps.supportsSubtitleEdit}
+              onClick={() => {
+                if (!formatCaps.supportsSubtitleEdit) return;
+                updateActiveTab((prev) => ({ ...prev, activePanelTab: 'subtitle' }));
+              }}
+              title={
+                !formatCaps.supportsSubtitleEdit
+                  ? t('panel.subtitleUnsupported', { fmt: formatCaps.container })
+                  : undefined
+              }
+              className={`flex-1 h-8 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors ${
+                !formatCaps.supportsSubtitleEdit
+                  ? 'text-zinc-600 opacity-45 cursor-not-allowed'
+                  : effectivePanelTab === 'subtitle'
+                  ? 'bg-white/[0.1] text-white cursor-pointer'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04] cursor-pointer'
               }`}
             >
-              <Subtitles className="w-3.5 h-3.5 text-sky-400" />
+              <Subtitles
+                className={`w-3.5 h-3.5 ${
+                  formatCaps.supportsSubtitleEdit ? 'text-sky-400' : 'text-zinc-600'
+                }`}
+              />
               <span>{t('panel.subtitle')}</span>
-              {activeTab.subtitleTracks.length > 0 && (
+              {formatCaps.supportsSubtitleEdit && activeTab.subtitleTracks.length > 0 && (
                 <span className="px-1.5 rounded-full bg-sky-500/20 text-sky-300 text-[10px] font-mono-num">
                   {activeTab.subtitleTracks.length}
                 </span>
@@ -3207,7 +3271,7 @@ export function App() {
           </div>
 
           <div className="flex-1 min-h-0 overflow-hidden">
-            {activeTab.activePanelTab === 'cut' ? (
+            {effectivePanelTab === 'cut' ? (
               <CutListPanel
                 duration={duration}
                 currentTime={playerState.time_pos}
@@ -3232,7 +3296,7 @@ export function App() {
                 }}
                 onSeek={handleSeek}
               />
-            ) : activeTab.activePanelTab === 'audio' ? (
+            ) : effectivePanelTab === 'audio' ? (
               <AudioTrackPanel
                 hasMedia={Boolean(media)}
                 tracks={activeTab.audioTracks}

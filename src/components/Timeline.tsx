@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ZoomIn, ZoomOut, Sparkles, Maximize2, ScanEye } from 'lucide-react';
+import { ZoomIn, ZoomOut, Crosshair, Magnet, Maximize2, ScanEye } from 'lucide-react';
 import type { CutMode, CutRange, ExportSegment } from '../types/media';
 import { formatTimecode } from '../utils/timecode';
 import { snapToNearestKeyframe } from '../utils/segments';
@@ -525,7 +525,7 @@ export const Timeline: React.FC<TimelineProps> = ({
             }`}
             title={smartCut ? t('tl.smartCutOnTitle') : t('tl.smartCutOffTitle')}
           >
-            <Sparkles className="w-3 h-3" />
+            {smartCut ? <Crosshair className="w-3 h-3" /> : <Magnet className="w-3 h-3" />}
             <span>{smartCut ? t('tl.smartCutOn') : t('tl.smartCutOff')}</span>
           </button>
 

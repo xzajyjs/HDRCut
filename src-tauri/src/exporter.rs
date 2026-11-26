@@ -358,7 +358,7 @@ impl ExportManager {
                                 speed: format!("切点 {reencode_done}/{reencode_total}"),
                                 written_bytes: 0,
                                 message: format!(
-                                    "智能剪辑：精确编码切点 GOP ({reencode_done}/{reencode_total})，其余片段保持零重编码..."
+                                    "帧精确剪辑：精确编码切点 GOP ({reencode_done}/{reencode_total})，其余片段保持零重编码..."
                                 ),
                                 output_path: req.output_path.clone(),
                                 eta_sec: None,
@@ -404,7 +404,7 @@ impl ExportManager {
             let concat_path = std::env::temp_dir()
                 .join(format!("hdrcut_concat_{}.ffconcat", uuid::Uuid::new_v4()));
             std::fs::write(&concat_path, &concat_content)
-                .map_err(|e| format!("写入智能剪辑分段清单失败: {e}"))?;
+                .map_err(|e| format!("写入帧精确分段清单失败: {e}"))?;
             temp_files.push(concat_path.clone());
 
             primary_input_args.push("-f".into());
@@ -891,7 +891,7 @@ impl ExportManager {
                 speed: "准备中...".into(),
                 written_bytes: 0,
                 message: if use_smart_cut {
-                    "智能剪辑：单遍无损拼接封装中...".into()
+                    "帧精确剪辑：单遍无损拼接封装中...".into()
                 } else {
                     "正在启动单遍无损封装...".into()
                 },
@@ -990,7 +990,7 @@ impl ExportManager {
                                 speed: speed.clone(),
                                 written_bytes,
                                 message: if use_smart_cut {
-                                    "智能剪辑无损拼接中".into()
+                                    "帧精确无损拼接中".into()
                                 } else {
                                     "无损直出封装中".into()
                                 },
@@ -1062,7 +1062,7 @@ impl ExportManager {
                 speed,
                 written_bytes: final_size,
                 message: if use_smart_cut {
-                    format!("智能剪辑 {fmt_label} 导出完成！")
+                    format!("帧精确 {fmt_label} 导出完成！")
                 } else {
                     format!("无损 {fmt_label} 导出完成！")
                 },
@@ -1088,7 +1088,7 @@ impl ExportManager {
         out_path: &Path,
     ) -> Result<(), String> {
         let encoder = resolve_smart_encoder(&meta.codec_name)
-            .ok_or_else(|| format!("不支持的智能剪辑编码器: {}", meta.codec_name))?;
+            .ok_or_else(|| format!("当前编码器暂不支持帧精确切点编码: {}", meta.codec_name))?;
 
         let fast_seek = (seek_base - 0.5).max(0.0);
         let fine_seek = (start - fast_seek).max(0.0);
@@ -1267,13 +1267,13 @@ impl ExportManager {
 
         let child = cmd
             .spawn()
-            .map_err(|e| format!("启动智能剪辑切点编码失败: {e}"))?;
+            .map_err(|e| format!("启动帧精确切点编码失败: {e}"))?;
         *self.active_pid.lock() = child.id();
 
         let output = child
             .wait_with_output()
             .await
-            .map_err(|e| format!("等待智能剪辑切点编码失败: {e}"))?;
+            .map_err(|e| format!("等待帧精确切点编码失败: {e}"))?;
         *self.active_pid.lock() = None;
 
         if *self.cancelled.lock() {
@@ -1282,7 +1282,7 @@ impl ExportManager {
 
         if !output.status.success() {
             let err_str = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("智能剪辑切点编码失败:\n{err_str}"));
+            return Err(format!("帧精确切点编码失败:\n{err_str}"));
         }
 
         Ok(())

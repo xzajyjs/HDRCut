@@ -7,6 +7,24 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.7.3] - 2026-11-26
+
+### English
+- **Clearer Frame-Accurate Cut Label (No More AI "Smart Cut" Confusion)**:
+  - Renamed the timeline toggle and export strategy labels from **Smart Cut** (with AI-like sparkles icon) to **Frame-Accurate** (with precision crosshair icon) / **Keyframe Cut · 0-Encode** (with magnet icon) so users immediately understand it controls cut-point precision rather than AI auto-editing.
+- **Expanded Video Import Formats Aligned with Export + Format-Aware Track Controls**:
+  - Aligned video import support and TopBar format hints across all 8 mainstream export formats (`MP4`, `MKV`, `MOV`, `WebM`, `AVI`, `TS`, `FLV`, `M4V`, plus `M2TS`/`MTS`).
+  - Added automatic container-capability detection: when importing formats that do not support subtitle editing (`AVI`, `TS`, `FLV`) or multi-track audio editing (`FLV`), the corresponding **Audio** / **Subtitles** inspector tabs and controls are gracefully grayed out with clear explanatory tooltips and automatic fallback to the **Cut** tab.
+
+### 中文
+- **消除「智能剪辑」歧义，改为「帧精确剪辑」**：
+  - 将时间轴工具栏按钮、导出明细与进度提示中的「智能剪辑」（及易被误认为 AI 功能的 ✨ 图标）统一更名为 **「帧精确剪辑」**（准星图标）/ **「关键帧剪辑 · 0重编码」**（磁铁图标），清晰表达切点精度与零重编码策略，避免被误解为 AI 自动剪辑。
+- **导入视频格式与全部导出格式对齐，不支持音轨/字幕编辑的格式自动置灰**：
+  - 导入视频文件选择器与顶部栏提示全面对齐全部 8 种主流封装格式（`MP4 / MKV / MOV / WebM / AVI / TS / FLV / M4V`，同时兼容 `M2TS / MTS`）。
+  - 新增容器格式能力识别：导入不支持字幕编辑的格式（如 `AVI`、`TS`、`FLV`）或不支持多音轨编辑的格式（如 `FLV`）时，右侧 **音轨 / 字幕** 标签及对应切换控件自动变为灰色不可用状态，并附带悬停原因提示且自动回退至 **剪辑** 面板。
+
+---
+
 ## [1.7.2] - 2026-11-26
 
 ### English
