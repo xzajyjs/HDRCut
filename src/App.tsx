@@ -42,7 +42,7 @@ import { MediaDetailsModal } from './components/MediaDetailsModal';
 import { LanguageModal } from './components/LanguageModal';
 import { UpdateModal } from './components/UpdateModal';
 import { MissingMediaModal } from './components/MissingMediaModal';
-import { AdvancedExportModal } from './components/AdvancedExportModal';
+import { ExportModal } from './components/ExportModal';
 import { useI18n } from './i18n';
 
 const INITIAL_PLAYER_STATE: PlayerStateEvent = {
@@ -136,7 +136,7 @@ function subtitleExtForCodec(codec: string): string {
   return 'srt';
 }
 
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.7.2';
 const AUTO_UPDATE_STORAGE_KEY = 'hdrcut.autoUpdate';
 const MAX_HISTORY_STEPS = 80;
 
@@ -201,7 +201,7 @@ export function App() {
   const [isNativeReady, setIsNativeReady] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [showAdvancedExport, setShowAdvancedExport] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [skimmingEnabled, setSkimmingEnabled] = useState(false);
 
@@ -2665,12 +2665,13 @@ export function App() {
         return;
       }
 
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-
-      if (e.key === 'Escape' && showAdvancedExport) {
-        setShowAdvancedExport(false);
+      if (e.key === 'Escape' && showExportModal) {
+        setShowExportModal(false);
         return;
       }
+
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
       if (e.key === 'Escape' && pendingProject) {
         handleCancelMissingMedia();
         return;
@@ -2692,7 +2693,23 @@ export function App() {
         return;
       }
 
-      if (!media || showDetails || showUpdateModal || pendingProject || showAdvancedExport) return;
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && keyLower === 'e') {
+        if (
+          media &&
+          keptSegments.length > 0 &&
+          !isExportingRef.current &&
+          !isLoadingProjectRef.current &&
+          !showDetails &&
+          !showUpdateModal &&
+          !pendingProject
+        ) {
+          e.preventDefault();
+          setShowExportModal(true);
+        }
+        return;
+      }
+
+      if (!media || showDetails || showUpdateModal || pendingProject || showExportModal) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
@@ -2740,9 +2757,10 @@ export function App() {
     };
   }, [
     media,
+    keptSegments.length,
     showDetails,
     showUpdateModal,
-    showAdvancedExport,
+    showExportModal,
     pendingProject,
     updateProgress?.stage,
     handleUndo,
@@ -2764,197 +2782,173 @@ export function App() {
     handleToggleSkimming,
   ]);
 
-  // Export Lossless MKV / MP4 for active tab
-  const handleStartExport = useCallback(async () => {
-    if (!media || keptSegments.length === 0) return;
-    handleSkimEnd(false);
+  // Export Lossless MKV / MP4 for active tab (direct from unified ExportModal — no redundant OS save dialog)
+  const handleStartExport = useCallback(
+    async (chosenPath: string, chosenFormat: 'mkv' | 'mp4') => {
+      if (!media || keptSegments.length === 0 || !chosenPath) return;
+      if (chosenPath.toLowerCase() === media.file_path.toLowerCase()) return;
 
-    invoke('player_set_pause', { paused: true }).catch(() => {});
+      setShowExportModal(false);
+      handleSkimEnd(false);
 
-    const fmt = activeTab.exportFormat;
-    const baseDir = activeTab.outputDir || getDirName(media.file_path);
-    const defaultName = `${getBaseNameWithoutExt(media.file_name)}-edit.${fmt}`;
-    const defaultPath = baseDir ? joinPath(baseDir, defaultName) : defaultName;
+      invoke('player_set_pause', { paused: true }).catch(() => {});
 
-    const chosen = await save({
-      title: t('dlg.exportVideoTitle', { fmt }),
-      defaultPath,
-      filters:
-        fmt === 'mp4'
-          ? [
-              { name: 'MP4 视频 (.mp4)', extensions: ['mp4'] },
-              { name: 'Matroska 视频 (.mkv)', extensions: ['mkv'] },
-            ]
-          : [
-              { name: 'Matroska 视频 (.mkv)', extensions: ['mkv'] },
-              { name: 'MP4 视频 (.mp4)', extensions: ['mp4'] },
-            ],
-    });
-
-    if (!chosen) return;
-
-    let finalFormat: 'mkv' | 'mp4' = fmt;
-    let outputPath = chosen;
-    if (/\.mp4$/i.test(chosen)) {
-      finalFormat = 'mp4';
-    } else if (/\.mkv$/i.test(chosen)) {
-      finalFormat = 'mkv';
-    } else {
-      outputPath = `${chosen}.${fmt}`;
-    }
-
-    const chosenDir = getDirName(outputPath);
-    updateActiveTab((prev) => ({
-      ...prev,
-      outputDir: chosenDir || prev.outputDir,
-      exportFormat: finalFormat,
-    }));
-
-    let finalSegments = keptSegments;
-    if (snapKeyframes && keyframes.length === 0 && !isFullFile) {
-      try {
-        const snapped = [];
-        for (const seg of keptSegments) {
-          let s = seg.start;
-          let e = seg.end;
-          if (s > 0.05) {
-            const nearS = await invoke<number[]>('get_keyframes_near', {
-              filePath: media.file_path,
-              targetTime: s,
-              windowSec: 15,
-            });
-            if (nearS.length > 0) s = snapToNearestKeyframe(s, nearS, duration);
-          }
-          if (e < duration - 0.05) {
-            const nearE = await invoke<number[]>('get_keyframes_near', {
-              filePath: media.file_path,
-              targetTime: e,
-              windowSec: 15,
-            });
-            if (nearE.length > 0) e = snapToNearestKeyframe(e, nearE, duration);
-          }
-          if (e > s + 0.05) snapped.push({ start: s, end: e });
-        }
-        if (snapped.length > 0) finalSegments = snapped;
-      } catch {
-        // Proceed with requested segments
+      let finalFormat: 'mkv' | 'mp4' = chosenFormat;
+      let outputPath = chosenPath;
+      if (/\.mp4$/i.test(chosenPath)) {
+        finalFormat = 'mp4';
+      } else if (/\.mkv$/i.test(chosenPath)) {
+        finalFormat = 'mkv';
+      } else {
+        outputPath = `${chosenPath}.${chosenFormat}`;
       }
-    }
 
-    const enabledSubtitles = activeTab.subtitleTracks.filter((s) => s.enabled);
+      const chosenDir = getDirName(outputPath);
+      updateActiveTab((prev) => ({
+        ...prev,
+        outputDir: chosenDir || prev.outputDir,
+        exportFormat: finalFormat,
+      }));
 
-    const request = {
-      input_path: media.file_path,
-      output_path: outputPath,
-      output_format: finalFormat,
-      total_source_duration: duration,
-      is_full_file: isFullFile,
-      kept_segments: finalSegments,
-      keep_audio_tracks: activeTab.audioTracks
-        .filter((t) => t.enabled && t.source_kind === 'internal')
-        .map((t) => ({
-          audio_index: t.audio_index,
-          title: t.title.trim() || `音轨 ${t.audio_index + 1}`,
-          language: t.language.trim() || null,
-          is_default: t.is_default,
-        })),
-      external_audio_tracks: activeTab.audioTracks
-        .filter((t) => t.enabled && t.source_kind === 'external' && t.file_path)
-        .map((t) => ({
-          file_path: t.file_path!,
-          title: t.title.trim() || '外部音轨',
-          language: t.language.trim() || null,
-          is_default: t.is_default,
-        })),
-      mixed_audio_tracks: activeTab.mixedTracks
-        .filter((m) => m.enabled && m.source_audio_indices.length >= 2)
-        .map((m) => ({
-          source_audio_indices: m.source_audio_indices,
-          gains_db: m.source_audio_indices.map((idx) => m.gains_db[idx] ?? 0),
-          title: m.title.trim() || '混合音轨',
-          codec: m.codec,
-          normalize: m.normalize,
-          is_default: m.is_default,
-        })),
-      keep_subtitles: enabledSubtitles.length > 0,
-      subtitle_codecs: media.subtitle_tracks.map((s) => s.codec_name),
-      subtitle_tracks: enabledSubtitles.map((s) => ({
-        source_kind: s.source_kind,
-        subtitle_index: s.source_kind === 'internal' ? s.subtitle_index ?? null : null,
-        file_path: s.source_kind === 'external' ? s.file_path ?? null : null,
-        codec_name: s.codec_name,
-        title: s.title.trim(),
-        language: s.language.trim() || null,
-        is_default: s.is_default,
-        delay_sec: s.delay_sec || 0,
-      })),
-      smart_cut: activeTab.smartCut,
-      keyframes: keyframes,
-      video_meta: media.video
-        ? {
-            codec_name: media.video.codec_name,
-            fps: media.video.fps,
-            pix_fmt: media.video.pix_fmt,
-            color_space: media.video.color_space,
-            color_transfer: media.video.color_transfer,
-            color_primaries: media.video.color_primaries,
-            color_range: media.video.color_range,
-            time_base_den: media.video.time_base_den,
-            master_display: media.video.master_display,
-            max_cll: media.video.max_cll,
-            format_name: media.format_name,
+      let finalSegments = keptSegments;
+      if (snapKeyframes && keyframes.length === 0 && !isFullFile) {
+        try {
+          const snapped = [];
+          for (const seg of keptSegments) {
+            let s = seg.start;
+            let e = seg.end;
+            if (s > 0.05) {
+              const nearS = await invoke<number[]>('get_keyframes_near', {
+                filePath: media.file_path,
+                targetTime: s,
+                windowSec: 15,
+              });
+              if (nearS.length > 0) s = snapToNearestKeyframe(s, nearS, duration);
+            }
+            if (e < duration - 0.05) {
+              const nearE = await invoke<number[]>('get_keyframes_near', {
+                filePath: media.file_path,
+                targetTime: e,
+                windowSec: 15,
+              });
+              if (nearE.length > 0) e = snapToNearestKeyframe(e, nearE, duration);
+            }
+            if (e > s + 0.05) snapped.push({ start: s, end: e });
           }
-        : null,
-    };
+          if (snapped.length > 0) finalSegments = snapped;
+        } catch {
+          // Proceed with requested segments
+        }
+      }
 
-    try {
-      await invoke<string>('start_export', { request });
-    } catch (err) {
-      setExportProgress({
-        status: 'error',
-        percent: 0,
-        out_time_sec: 0,
-        expected_duration_sec: duration,
-        speed: '',
-        written_bytes: 0,
-        message: String(err),
+      const enabledSubtitles = activeTab.subtitleTracks.filter((s) => s.enabled);
+
+      const request = {
+        input_path: media.file_path,
         output_path: outputPath,
-      });
-    }
-  }, [
-    media,
-    activeTab,
-    keptSegments,
-    isFullFile,
-    snapKeyframes,
-    keyframes,
-    duration,
-    updateActiveTab,
-  ]);
+        output_format: finalFormat,
+        total_source_duration: duration,
+        is_full_file: isFullFile,
+        kept_segments: finalSegments,
+        keep_audio_tracks: activeTab.audioTracks
+          .filter((t) => t.enabled && t.source_kind === 'internal')
+          .map((t) => ({
+            audio_index: t.audio_index,
+            title: t.title.trim() || `音轨 ${t.audio_index + 1}`,
+            language: t.language.trim() || null,
+            is_default: t.is_default,
+          })),
+        external_audio_tracks: activeTab.audioTracks
+          .filter((t) => t.enabled && t.source_kind === 'external' && t.file_path)
+          .map((t) => ({
+            file_path: t.file_path!,
+            title: t.title.trim() || '外部音轨',
+            language: t.language.trim() || null,
+            is_default: t.is_default,
+          })),
+        mixed_audio_tracks: activeTab.mixedTracks
+          .filter((m) => m.enabled && m.source_audio_indices.length >= 2)
+          .map((m) => ({
+            source_audio_indices: m.source_audio_indices,
+            gains_db: m.source_audio_indices.map((idx) => m.gains_db[idx] ?? 0),
+            title: m.title.trim() || '混合音轨',
+            codec: m.codec,
+            normalize: m.normalize,
+            is_default: m.is_default,
+          })),
+        keep_subtitles: enabledSubtitles.length > 0,
+        subtitle_codecs: media.subtitle_tracks.map((s) => s.codec_name),
+        subtitle_tracks: enabledSubtitles.map((s) => ({
+          source_kind: s.source_kind,
+          subtitle_index: s.source_kind === 'internal' ? s.subtitle_index ?? null : null,
+          file_path: s.source_kind === 'external' ? s.file_path ?? null : null,
+          codec_name: s.codec_name,
+          title: s.title.trim(),
+          language: s.language.trim() || null,
+          is_default: s.is_default,
+          delay_sec: s.delay_sec || 0,
+        })),
+        smart_cut: activeTab.smartCut,
+        keyframes: keyframes,
+        video_meta: media.video
+          ? {
+              codec_name: media.video.codec_name,
+              fps: media.video.fps,
+              pix_fmt: media.video.pix_fmt,
+              color_space: media.video.color_space,
+              color_transfer: media.video.color_transfer,
+              color_primaries: media.video.color_primaries,
+              color_range: media.video.color_range,
+              time_base_den: media.video.time_base_den,
+              master_display: media.video.master_display,
+              max_cll: media.video.max_cll,
+              format_name: media.format_name,
+            }
+          : null,
+      };
+
+      try {
+        await invoke<string>('start_export', { request });
+      } catch (err) {
+        setExportProgress({
+          status: 'error',
+          percent: 0,
+          out_time_sec: 0,
+          expected_duration_sec: duration,
+          speed: '',
+          written_bytes: 0,
+          message: String(err),
+          output_path: outputPath,
+        });
+      }
+    },
+    [
+      media,
+      activeTab,
+      keptSegments,
+      isFullFile,
+      snapKeyframes,
+      keyframes,
+      duration,
+      handleSkimEnd,
+      updateActiveTab,
+    ]
+  );
 
   // Advanced Transcoding Export (custom container, codec, resolution, FPS, bitrate/target-size, HDR->SDR)
   const handleStartAdvancedExport = useCallback(
-    async (advConfig: AdvancedExportConfig) => {
-      if (!media || keptSegments.length === 0) return;
-      setShowAdvancedExport(false);
+    async (chosenPath: string, advConfig: AdvancedExportConfig) => {
+      if (!media || keptSegments.length === 0 || !chosenPath) return;
+      if (chosenPath.toLowerCase() === media.file_path.toLowerCase()) return;
+
+      setShowExportModal(false);
       handleSkimEnd(false);
 
       invoke('player_set_pause', { paused: true }).catch(() => {});
 
       const ext = advConfig.container;
-      const baseDir = activeTab.outputDir || getDirName(media.file_path);
-      const defaultName = `${getBaseNameWithoutExt(media.file_name)}-adv.${ext}`;
-      const defaultPath = baseDir ? joinPath(baseDir, defaultName) : defaultName;
-
-      const chosen = await save({
-        title: t('dlg.exportVideoTitle', { fmt: ext.toUpperCase() }),
-        defaultPath,
-        filters: [{ name: `${ext.toUpperCase()} (.${ext})`, extensions: [ext] }],
-      });
-      if (!chosen) return;
-
       const extRegex = new RegExp(`\\.${ext}$`, 'i');
-      const outputPath = extRegex.test(chosen) ? chosen : `${chosen}.${ext}`;
+      const outputPath = extRegex.test(chosenPath) ? chosenPath : `${chosenPath}.${ext}`;
       const chosenDir = getDirName(outputPath);
       if (chosenDir && chosenDir !== activeTab.outputDir) {
         updateActiveTab((prev) => ({ ...prev, outputDir: chosenDir }));
@@ -3045,7 +3039,7 @@ export function App() {
         });
       }
     },
-    [media, activeTab, keptSegments, isFullFile, duration, handleSkimEnd, t, updateActiveTab]
+    [media, activeTab, keptSegments, isFullFile, duration, handleSkimEnd, updateActiveTab]
   );
 
   const canExport = Boolean(media && keptSegments.length > 0);
@@ -3080,8 +3074,6 @@ export function App() {
       <TopBar
         media={media}
         toolStatus={toolStatus}
-        outputDir={activeTab.outputDir}
-        exportFormat={activeTab.exportFormat}
         isExporting={isBusyWorkspace}
         isAnalyzing={activeTab.isAnalyzing}
         canExport={canExport}
@@ -3110,14 +3102,7 @@ export function App() {
         onImportVideo={handleImportVideo}
         onCloseVideo={handleCloseVideoInTab}
         onOpenDetails={() => setShowDetails(true)}
-        onPickOutputDir={handlePickOutputDir}
-        onExportFormatChange={(fmt) => {
-          if (fmt === activeTab.exportFormat) return;
-          recordHistory();
-          updateActiveTab((prev) => ({ ...prev, exportFormat: fmt }));
-        }}
-        onStartExport={handleStartExport}
-        onOpenAdvancedExport={() => setShowAdvancedExport(true)}
+        onOpenExportModal={() => setShowExportModal(true)}
       />
 
       {/* Middle Studio Workspace */}
@@ -3132,7 +3117,7 @@ export function App() {
               needsLanguageSetup ||
               showUpdateModal ||
               Boolean(pendingProject) ||
-              showAdvancedExport
+              showExportModal
             }
             isDraggingFile={isDraggingFile}
             errorMsg={activeTab.playerError}
@@ -3437,16 +3422,28 @@ export function App() {
         onConfirm={() => void handleConfirmMissingMedia()}
       />
 
-      {/* Advanced Transcoding Export Modal (native video view auto-hidden while open) */}
-      <AdvancedExportModal
-        open={showAdvancedExport}
+      {/* Unified Export Modal — Lossless Direct (Default) + Advanced Transcoding (native video view auto-hidden while open) */}
+      <ExportModal
+        open={showExportModal}
         media={media}
+        outputDir={activeTab.outputDir}
+        losslessFormat={activeTab.exportFormat}
         expectedDurationSec={expectedKeptDuration}
+        keptSegmentCount={keptSegments.length}
+        isFullFile={isFullFile}
+        smartCut={activeTab.smartCut}
         audioTrackCount={enabledAudioOutputCount}
         subtitleTrackCount={enabledSubtitleOutputCount}
         isBusy={isBusyWorkspace}
-        onClose={() => setShowAdvancedExport(false)}
-        onConfirmExport={(cfg) => void handleStartAdvancedExport(cfg)}
+        onClose={() => setShowExportModal(false)}
+        onPickOutputDir={handlePickOutputDir}
+        onLosslessFormatChange={(fmt) => {
+          if (fmt === activeTab.exportFormat) return;
+          recordHistory();
+          updateActiveTab((prev) => ({ ...prev, exportFormat: fmt }));
+        }}
+        onStartLosslessExport={(outPath, fmt) => void handleStartExport(outPath, fmt)}
+        onStartAdvancedExport={(outPath, cfg) => void handleStartAdvancedExport(outPath, cfg)}
       />
 
       {/* First-Launch Language Selection Modal (English / 简体中文) */}

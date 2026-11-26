@@ -1,6 +1,6 @@
 [package]
 name = "hdrcut"
-version = "1.7.1"
+version = "1.7.2"
 description = "Lightweight, ultra-smooth, blazing-fast cross-platform lossless SDR & HDR video cutter, audio mixer, and subtitle workstation"
 authors = ["HDRCut"]
 edition = "2021"

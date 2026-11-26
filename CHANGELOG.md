@@ -7,6 +7,28 @@ This project follows Semantic Versioning:
 
 ---
 
+## [1.7.2] - 2026-11-26
+
+### English
+- **Unified Single-Entry Export Center (Cleaner TopBar & 2-Step Direct Export)**:
+  - Replaced the 4 fragmented export controls in the top toolbar (`Output Folder`, `MKV | MP4`, `Lossless Export`, `Advanced`) with a single clear primary **Export** (`Cmd/Ctrl+E`) button.
+  - Clicking **Export** opens a unified 2-tab **Export Video** dialog:
+    - **Shared Output Destination Block**: Edit the output filename stem with a live `.ext` suffix badge and switch the output directory directly inside the dialog, complete with real-time file-exists overwrite detection, a one-click **Auto Rename** (`-2`, `-3`, ...) button, and source-file overwrite protection.
+    - **Tab 1 — Lossless Direct (Default · Ultra Fast)**: Clean MKV / MP4 format cards and a live lossless export summary (kept segments & duration, Smart Cut vs. Keyframe strategy, video stream copy status, audio/subtitle counts, and estimated file size).
+    - **Tab 2 — Advanced Transcode**: All v1.7.0 transcoding features (8 formats, codecs, VideoToolbox HW accel, aspect-locked resolution, down-only FPS, rotation/flip, CRF / target bitrate / 2-pass `≤ MB` target file size compression, HDR→SDR tone mapping, audio & subtitle controls) seamlessly integrated in one window.
+  - Clicking **Start Export** begins exporting immediately without popping up a redundant OS save dialog, keeping the entire workflow to 2 clicks.
+
+### 中文
+- **全新统一单入口「导出中心」（精简顶部栏 + 两步直出）**：
+  - 将顶部工具栏原本分散的 4 个导出相关控件（`选择导出目录`、`MKV | MP4`、`无损导出`、`进阶导出`）精简合并为唯一清晰的翠绿色 **「导出」** 主按钮（支持 `Cmd/Ctrl+E` 快捷键），彻底消除入口混乱。
+  - 点击 **「导出」** 打开统一的 **双标签导出弹窗**：
+    - **顶部共享输出位置区**：内置可编辑文件名（后缀自动联动当前格式）与导出目录选择器，并实时检测同名文件冲突，提供一键 **「自动加序号」**（`-2`、`-3`…）以及禁止覆盖源视频的安全拦截。
+    - **标签一：无损直出（默认 · 极速）**：MKV / MP4 大卡片切换 + 无损直出明细预览（保留片段数与时长、智能剪辑/关键帧策略、视频零重编码直出、音轨/字幕数及预估体积）。
+    - **标签二：进阶转码导出**：完整集成 8 种封装格式、编码器与硬件加速、锁定源比例分辨率、降帧控制、旋转翻转、CRF/码率/双遍按目标体积压缩（≤ MB）、HDR 转 SDR 色调映射与音字幕编码配置。
+  - 点击底部确认按钮后**直接开始导出**，不再弹出多余的系统文件保存框，保持与原来一致的「2 次点击即导出」高效体验。
+
+---
+
 ## [1.7.1] - 2026-11-25
 
 ### English
